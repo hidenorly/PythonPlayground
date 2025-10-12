@@ -19,7 +19,6 @@ import datetime
 import os
 import time
 
-
 class TenkuraFilterUtil:
   @staticmethod
   def getYYMMDD(yymmdd):
@@ -207,6 +206,37 @@ class TenkuraFilterUtil:
 
     return result
 
+  try:
+    # pip install jpholiday
+    from jpholiday import JPHoliday
+    jpholiday = JPHoliday()
+  except:
+    pass
+
+  @staticmethod
+  def getWeekEndYYMMDDWithJpHolidays(startDateTime, isMMDD=True, search_range=2):
+    weekendDateTimes = TenkuraFilterUtil.getWeekEndDates(startDateTime)
+    if len(weekendDateTimes) >= 2:
+      candidates = []
+      for i in range(search_range):
+        candidates.append( weekendDateTimes[0] - datetime.timedelta(days=i) )
+        candidates.append( weekendDateTimes[1] + datetime.timedelta(days=i) )
+      for candidate in candidates:
+        try:
+          if TenkuraFilterUtil.jpholiday.is_holiday( candidate ):
+            weekendDateTimes.append( candidate )
+        except:
+          pass
+      weekendDateTimes = sorted( weekendDateTimes )
+    result = []
+    dateFormat = '%Y/%m/%d'
+    if isMMDD:
+      dateFormat = '%m/%d'
+    for theDateTime in weekendDateTimes:
+      result.append( TenkuraFilterUtil.ensureYearMonth(theDateTime.strftime( dateFormat ), "", isMMDD ))
+
+    return result
+
   @staticmethod
   def getDispDays(weeklyDates):
     weeklyDays = ""
@@ -246,7 +276,7 @@ if __name__=="__main__":
 
   specifiedDate = TenkuraFilterUtil.getListOfDates( args.date )
   if args.dateweekend:
-    weekEndDates = TenkuraFilterUtil.getWeekEndYYMMDD( datetime.datetime.now(), False )
+    weekEndDates = TenkuraFilterUtil.getWeekEndYYMMDDWithJpHolidays( datetime.datetime.now(), False )
     specifiedDate.extend(weekEndDates)
     specifiedDate = list(set(filter(None,specifiedDate)))
     specifiedDate.sort(key=TenkuraFilterUtil.dateSortUtil)
