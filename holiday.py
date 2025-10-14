@@ -217,17 +217,19 @@ class TenkuraFilterUtil:
   def getWeekEndYYMMDDWithJpHolidays(startDateTime, isMMDD=True, search_range=2):
     weekendDateTimes = TenkuraFilterUtil.getWeekEndDates(startDateTime)
     if len(weekendDateTimes) >= 2:
-      candidates = []
-      for i in range(search_range):
-        candidates.append( weekendDateTimes[0] - datetime.timedelta(days=i) )
-        candidates.append( weekendDateTimes[1] + datetime.timedelta(days=i) )
-      for candidate in candidates:
-        try:
-          if TenkuraFilterUtil.jpholiday.is_holiday( candidate ):
-            weekendDateTimes.append( candidate )
-        except:
-          pass
-      weekendDateTimes = sorted( weekendDateTimes )
+      weekendDateTimes2 = set(weekendDateTimes)
+      for day in weekendDateTimes:
+        for i in range(search_range):
+          try:
+            _day = day - datetime.timedelta(days=i)
+            if TenkuraFilterUtil.jpholiday.is_holiday( _day ):
+              weekendDateTimes2.add( _day )
+            _day = day + datetime.timedelta(days=i)
+            if TenkuraFilterUtil.jpholiday.is_holiday( _day ):
+              weekendDateTimes2.add( _day )
+          except:
+            pass
+      weekendDateTimes = sorted( weekendDateTimes2 )
     result = []
     dateFormat = '%Y/%m/%d'
     if isMMDD:
