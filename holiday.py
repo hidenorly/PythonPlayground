@@ -212,10 +212,10 @@ class TenkuraFilterUtil:
     jpholiday = JPHoliday()
 
     @staticmethod
-    def addIfHoliday(holidays, candidateDate, delta = 0):
+    def addIfHoliday(holidays, candidateDate, delta = 0, onlyAllowFuture = True):
       delta = int(delta)
       _day = candidateDate + datetime.timedelta(days=delta)
-      if TenkuraFilterUtil.jpholiday.is_holiday( _day ):
+      if (not onlyAllowFuture or _day.date()>=datetime.datetime.now().date()) and TenkuraFilterUtil.jpholiday.is_holiday( _day ):
         holidays.add( _day )
   except:
     pass
@@ -229,6 +229,7 @@ class TenkuraFilterUtil:
       for day in weekendDateTimes:
         for i in range(search_range):
           TenkuraFilterUtil.addIfHoliday( weekendDateTimes2, day, i)
+          TenkuraFilterUtil.addIfHoliday( weekendDateTimes2, day, -i)
       weekendDateTimes = sorted( weekendDateTimes2 )
     result = []
     dateFormat = '%Y/%m/%d'
