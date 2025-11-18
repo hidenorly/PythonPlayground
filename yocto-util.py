@@ -17,6 +17,8 @@
 
 import subprocess
 import os
+import glob
+import re
 
 yocto_repos = [
     #"git://git.yoctoproject.org/poky",
@@ -42,11 +44,11 @@ def clone_repos(repos, target_dir="yocto_components"):
         except subprocess.CalledProcessError as e:
             print(f"Error cloning {repo_name}: {e}")
             try:
-                subprocess.run(
-                    ["git", "reset", "HEAD", "--hard"],
-                    cwd=target_dir,
-                    check=True
-                )
+                #subprocess.run(
+                #    ["git", "reset", "HEAD", "--hard"],
+                #    cwd=target_dir,
+                #    check=True
+                #)
                 subprocess.run(
                     ["git", "pull"],
                     cwd=target_dir,
@@ -57,5 +59,39 @@ def clone_repos(repos, target_dir="yocto_components"):
                 pass
 
 
+def extract_git_src_uris(yocto_layers_path="yocto_components"):
+    git_repos = set()
+    for filepath in glob.glob(os.path.join(yocto_layers_path, '**', '*.bb'), recursive=True):
+        print(f"...{filepath}")
+        try:
+            with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                src_uri_lines = re.findall(
+                    r'(?m)^SRC_URI\s*(\+\?*)*=\s*([\'"])(.*?)\2$', 
+                    content, 
+                    re.IGNORECASE | re.DOTALL
+                )
+
+                for _, _, uri_string in src_uri_lines:
+                    uris = uri_string.split()
+                    
+                    for uri in uris:
+                        uri = uri.strip()
+                        
+                        if uri.startswith(('git://', 'ssh://', 'http://', 'https://')):
+                            base_uri = re.sub(r';.*', '', uri).strip()
+                            
+                            if base_uri and ('.git' in base_uri or 'git.yoctoproject.org' in base_uri):
+                                git_repos.add(base_uri)
+                        
+        except Exception as e:
+            print(f"Error processing {filepath}: {e}")
+
+    return sorted(list(git_repos))
+
+
 if __name__=="__main__":
     clone_repos(yocto_repos)
+    all_component_git_urls = extract_git_src_uris()
+    for url in all_component_git_urls:
+        print(url)
