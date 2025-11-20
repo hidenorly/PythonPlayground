@@ -19,6 +19,7 @@ import subprocess
 import os
 import glob
 import re
+from typing import List, Dict, Any, Tuple
 
 yocto_repos = [
     #"git://git.yoctoproject.org/poky",
@@ -59,6 +60,23 @@ def clone_repos(repos, target_dir="yocto_components"):
                 pass
 
 
+def _parse_variables(content: str) -> Dict[str, str]:
+    variables = {}
+    
+    var_matches = re.findall(
+        r'(?m)^([A-Z_]+)\s*=\s*([\'"])(.*?)\2$', 
+        content, 
+        re.IGNORECASE
+    )
+    
+    for var_name, _, var_value in var_matches:
+        if var_name.upper() not in ["SUMMARY", "DESCRIPTION", "HOMEPAGE", "LICENSE", "LIC_FILES_CHKSUM", 
+                                    "SECTION", "SRC_URI", "SRCREV", "PACKAGES", "DEPENDS", "FILES"]:
+            variables[var_name] = var_value.strip()
+
+    return variables
+
+
 def extract_git_src_uris(yocto_layers_path="yocto_components"):
     all_git_info: List[Dict[str, Any]] = []
 
@@ -73,6 +91,8 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
+                variables = _parse_variables(content)
+
                 srcrev_match = re.search(
                     r'(?m)^SRCREV\s*=\s*([\'"])(.*?)\1', 
                     content, 
@@ -87,7 +107,10 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
                 )
 
                 for _, _, uri_string in src_uri_lines:
-                    uris = uri_string.split()
+                    resolved_uri_string = uri_string
+                    for var_name, var_value in variables.items():
+                        resolved_uri_string = resolved_uri_string.replace(f"${{{var_name}}}", var_value)
+                    uris = resolved_uri_string.split()
                     
                     for uri in uris:
                         uri = uri.strip()
@@ -127,3 +150,4 @@ if __name__=="__main__":
                             print(f"\t{_k}:\t{_v}")
             else:
                 print(f"{key}:\t{value}")
+        print("")
