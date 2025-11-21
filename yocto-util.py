@@ -59,6 +59,19 @@ def clone_repos(repos, target_dir="yocto_components"):
             except:
                 pass
 
+EXCLUDES_BB_VARIABLE_KEYS = [
+    "SUMMARY",
+    "DESCRIPTION",
+    "HOMEPAGE",
+    "LICENSE",
+    "LIC_FILES_CHKSUM",
+    "SECTION",
+    "SRC_URI",
+    "SRCREV",
+    "PACKAGES",
+    "DEPENDS",
+    "FILES"
+]
 
 def _parse_variables(content: str) -> Dict[str, str]:
     variables = {}
@@ -70,8 +83,7 @@ def _parse_variables(content: str) -> Dict[str, str]:
     )
     
     for var_name, _, var_value in var_matches:
-        if var_name.upper() not in ["SUMMARY", "DESCRIPTION", "HOMEPAGE", "LICENSE", "LIC_FILES_CHKSUM", 
-                                    "SECTION", "SRC_URI", "SRCREV", "PACKAGES", "DEPENDS", "FILES"]:
+        if var_name.upper() not in EXCLUDES_BB_VARIABLE_KEYS:
             variables[var_name] = var_value.strip()
 
     return variables
@@ -86,7 +98,7 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
         recipe_info = {
             "recipe_file": filepath,
             "recipe_name": recipe_name,
-            "git_repos": []
+            "git_repos": {} #[]
         }
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
@@ -124,12 +136,22 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
                                         branch = part.split('=', 1)[1].strip()
                                         break
 
-                                recipe_info["git_repos"].append({
-                                    "url": base_uri,
-                                    "branch": branch
-                                })
+#                                recipe_info["git_repos"].append({
+#                                    "url": base_uri,
+#                                    "branch": branch
+#                                })
+                                recipe_info["git_repos"][base_uri] = branch
 
                 if recipe_info["git_repos"]:
+                    _git_repos_dict = recipe_info["git_repos"]
+                    _git_repos = []
+                    for base_uri, branch in _git_repos_dict.items():
+                        _git_repos.append({
+                                "url": base_uri,
+                                "branch": branch
+                        })
+                    recipe_info["git_repos"] = _git_repos
+
                     all_git_info.append(recipe_info)
                         
         except Exception as e:
