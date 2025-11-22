@@ -89,6 +89,24 @@ def _parse_variables(content: str) -> Dict[str, str]:
     return variables
 
 
+def _parse_srcrev_defs(content: str):
+    srcrev_defs = {}
+    srcrev_matches = re.findall(
+        r'(?m)^(\s*SRCREV(?:_[A-Z0-9_-]+)?)\s*=\s*([\'"])(.*?)\2$', 
+        content, 
+        re.IGNORECASE
+    )
+    
+    for srcrev_var, _, sha_value in srcrev_matches:
+        name_key = srcrev_var.strip().upper().replace("SRCREV", "").strip('_')
+        
+        if not name_key:
+            name_key = "default"
+            
+        srcrev_defs[name_key] = sha_value.strip()
+
+    return srcrev_defs
+
 def extract_git_src_uris(yocto_layers_path="yocto_components"):
     all_git_info: List[Dict[str, Any]] = []
 
@@ -98,8 +116,9 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
         recipe_info = {
             "recipe_file": filepath,
             "recipe_name": recipe_name,
-            "git_repos": {} #[]
+            "git_repos": []
         }
+        _git_repos_dict = {}
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
@@ -136,14 +155,9 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
                                         branch = part.split('=', 1)[1].strip()
                                         break
 
-#                                recipe_info["git_repos"].append({
-#                                    "url": base_uri,
-#                                    "branch": branch
-#                                })
-                                recipe_info["git_repos"][base_uri] = branch
+                                _git_repos_dict[base_uri] = branch
 
-                if recipe_info["git_repos"]:
-                    _git_repos_dict = recipe_info["git_repos"]
+                if _git_repos_dict:
                     _git_repos = []
                     for base_uri, branch in _git_repos_dict.items():
                         _git_repos.append({
