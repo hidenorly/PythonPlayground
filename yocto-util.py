@@ -112,17 +112,18 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
 
     for filepath in glob.glob(os.path.join(yocto_layers_path, '**', '*.bb'), recursive=True):
         recipe_name = os.path.basename(filepath).replace(".bb", "")
-        print(f"...{filepath}")
+        #print(f"...{filepath}")
         recipe_info = {
             "recipe_file": filepath,
             "recipe_name": recipe_name,
             "git_repos": []
         }
-        _git_repos_dict = {}
+        _git_repos_set = set()
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
                 variables = _parse_variables(content)
+                srcrev_defs = _parse_srcrev_defs(content)
 
                 srcrev_match = re.search(
                     r'(?m)^SRCREV\s*=\s*([\'"])(.*?)\1', 
@@ -150,19 +151,30 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
                             base_uri = parts[0].strip()
                             if '.git' in base_uri or 'git.yoctoproject.org' in base_uri:
                                 branch = None
+                                name = None
+                                tag = None
                                 for part in parts[1:]:
-                                    if part.lower().startswith('branch='):
+                                    part = part.strip()
+                                    if part.lower().startswith('name='):
+                                        name = part.split('=', 1)[1].strip()
+                                    elif part.lower().startswith('branch='):
                                         branch = part.split('=', 1)[1].strip()
-                                        break
+                                    elif part.lower().startswith('tag='):
+                                        tag = part.split('=', 1)[1].strip()
 
-                                _git_repos_dict[base_uri] = branch
+                                _git_repos_set.add( (base_uri, name, branch, tag) )
 
-                if _git_repos_dict:
+                if _git_repos_set:
                     _git_repos = []
-                    for base_uri, branch in _git_repos_dict.items():
+                    for base_uri, name, branch, tag in _git_repos_set:
+                        srcrev_key = name.upper() if name else "default"
+                        resolved_srcrev = srcrev_defs.get(srcrev_key)
                         _git_repos.append({
+                                "name": name,
                                 "url": base_uri,
-                                "branch": branch
+                                "branch": branch,
+                                "tag": tag,
+                                "srcrev" : resolved_srcrev
                         })
                     recipe_info["git_repos"] = _git_repos
 
