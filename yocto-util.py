@@ -111,6 +111,7 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
     all_git_info: List[Dict[str, Any]] = []
 
     for filepath in glob.glob(os.path.join(yocto_layers_path, '**', '*.bb'), recursive=True):
+        filename = os.path.basename(filepath)
         recipe_name = os.path.basename(filepath).replace(".bb", "")
         #print(f"...{filepath}")
         recipe_info = {
@@ -122,7 +123,17 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
+
                 variables = _parse_variables(content)
+
+                match = re.match(r'(.+?)_([0-9].*)\.bb$', filename)
+                guessed_bpn = match.group(1) if match else recipe_name
+                if guessed_bpn:
+                    variables['BPN'] = guessed_bpn
+                guessed_pv = match.group(2) if match else None
+                if guessed_pv:
+                    variables['PV'] = guessed_pv
+
                 srcrev_defs = _parse_srcrev_defs(content)
 
                 srcrev_match = re.search(
