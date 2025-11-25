@@ -126,7 +126,7 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
 
                 variables = _parse_variables(content)
 
-                match = re.match(r'(.+?)_([0-9].*)\.bb$', filename)
+                match = re.match(r'(.+?)_([v|r]?\d.*)\.bb$', filename)
                 guessed_bpn = match.group(1) if match else recipe_name
                 if guessed_bpn:
                     variables['BPN'] = guessed_bpn
