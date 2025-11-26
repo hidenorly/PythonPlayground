@@ -130,6 +130,7 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
                 guessed_bpn = match.group(1) if match else recipe_name
                 if guessed_bpn:
                     variables['BPN'] = guessed_bpn
+                    variables['BP'] = guessed_bpn
                 guessed_pv = match.group(2) if match else None
                 if guessed_pv:
                     variables['PV'] = guessed_pv
