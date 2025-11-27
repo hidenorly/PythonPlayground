@@ -15,6 +15,7 @@
 #   limitations under the License.
 
 
+import argparse
 import subprocess
 import os
 import glob
@@ -27,7 +28,7 @@ yocto_repos = [
     # "git://git.yoctoproject.org/meta-virtualization",
 ]
 
-def clone_repos(repos, target_dir="yocto_components"):
+def clone_repos(repos, target_dir="yocto_components", branch=None):
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
@@ -35,9 +36,14 @@ def clone_repos(repos, target_dir="yocto_components"):
         repo_name = url.split('/')[-1]
         print(f"Cloning {repo_name} from {url}...")
         # TODO : branch
+        exec_git_clone_cmd = ["git", "clone", url]
+        if branch:
+            exec_git_clone_cmd.append("-b")
+            exec_git_clone_cmd.append(branch)
+
         try:
             subprocess.run(
-                ["git", "clone", url],
+                exec_git_clone_cmd,
                 cwd=target_dir,
                 check=True
             )
@@ -199,7 +205,12 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
 
 
 if __name__=="__main__":
-    clone_repos(yocto_repos)
+    parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
+    parser.add_argument('-b', '--branch', action='store', default=None, help='specify branch')
+    args = parser.parse_args()
+
+    clone_repos(yocto_repos, args.target, args.branch)
     all_git_info = extract_git_src_uris()
     for git_info in all_git_info:
         for key,value in git_info.items():
