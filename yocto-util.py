@@ -18,6 +18,7 @@
 import argparse
 import subprocess
 import os
+import shutil
 import glob
 import re
 from typing import List, Dict, Any, Tuple
@@ -28,14 +29,20 @@ yocto_repos = [
     # "git://git.yoctoproject.org/meta-virtualization",
 ]
 
-def clone_repos(repos, target_dir="yocto_components", branch=None):
+def clone_repos(repos, target_dir="yocto_components", isReset=False, branch=None):
+    if os.path.exists(target_dir) and isReset:
+        try:
+            print(f"rm -rf {target_dir}")
+            shutil.rmtree(target_dir)
+        except:
+            pass
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
     for url in repos:
         repo_name = url.split('/')[-1]
         print(f"Cloning {repo_name} from {url}...")
-        # TODO : branch
+
         exec_git_clone_cmd = ["git", "clone", url]
         if branch:
             exec_git_clone_cmd.append("-b")
@@ -51,11 +58,7 @@ def clone_repos(repos, target_dir="yocto_components", branch=None):
         except subprocess.CalledProcessError as e:
             print(f"Error cloning {repo_name}: {e}")
             try:
-                #subprocess.run(
-                #    ["git", "reset", "HEAD", "--hard"],
-                #    cwd=target_dir,
-                #    check=True
-                #)
+                #TODO: branch
                 subprocess.run(
                     ["git", "pull"],
                     cwd=target_dir,
@@ -208,9 +211,10 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
     parser.add_argument('-b', '--branch', action='store', default=None, help='specify branch')
+    parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
     args = parser.parse_args()
 
-    clone_repos(yocto_repos, args.target, args.branch)
+    clone_repos(yocto_repos, args.target, args.reset, args.branch)
     all_git_info = extract_git_src_uris()
     for git_info in all_git_info:
         for key,value in git_info.items():
