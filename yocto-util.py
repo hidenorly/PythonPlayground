@@ -212,17 +212,35 @@ if __name__=="__main__":
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
     parser.add_argument('-b', '--branch', action='store', default=None, help='specify branch')
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
+    parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git only')
+
+
     args = parser.parse_args()
 
     clone_repos(yocto_repos, args.target, args.reset, args.branch)
     all_git_info = extract_git_src_uris()
+    git_list = {}
+    is_print = not args.gitonly
     for git_info in all_git_info:
         for key,value in git_info.items():
             if isinstance(value, list):
                 for item in value:
                     if isinstance(item, dict):
                         for _k, _v in item.items():
-                            print(f"\t{_k}:\t{_v}")
+                            if is_print:
+                                print(f"\t{_k}:\t{_v}")
+                        if "url" in item and "branch" in item:
+                            git_list[item["url"]] = item["branch"]
             else:
-                print(f"{key}:\t{value}")
-        print("")
+                if is_print:
+                    print(f"{key}:\t{value}")
+        if is_print:
+            print("")
+
+
+    if not is_print:
+        for git, branch in git_list.items():
+            if branch:
+                print(f"git clone {git} -b {branch}")
+            else:
+                print(f"git clone {git}")
