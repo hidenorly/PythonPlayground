@@ -237,7 +237,7 @@ if __name__=="__main__":
         if is_print:
             print("")
 
-
+    git_list = dict(sorted(git_list.items(), key=lambda x: (x[0])))
     if not is_print:
         for git, branch in git_list.items():
             if branch:
