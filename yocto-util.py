@@ -207,6 +207,22 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
     return all_git_info
 
 
+def get_git_list(all_git_info):
+    git_list = {}
+
+    for git_info in all_git_info:
+        for key,value in git_info.items():
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        if "url" in item and "branch" in item:
+                            git_list[item["url"]] = item["branch"]
+
+    git_list = dict(sorted(git_list.items(), key=lambda x: (x[0])))
+
+    return git_list
+
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
@@ -219,28 +235,22 @@ if __name__=="__main__":
 
     clone_repos(yocto_repos, args.target, args.reset, args.branch)
     all_git_info = extract_git_src_uris()
-    git_list = {}
-    is_print = not args.gitonly
-    for git_info in all_git_info:
-        for key,value in git_info.items():
-            if isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        for _k, _v in item.items():
-                            if is_print:
-                                print(f"\t{_k}:\t{_v}")
-                        if "url" in item and "branch" in item:
-                            git_list[item["url"]] = item["branch"]
-            else:
-                if is_print:
-                    print(f"{key}:\t{value}")
-        if is_print:
-            print("")
+    git_list = get_git_list(all_git_info)
 
-    git_list = dict(sorted(git_list.items(), key=lambda x: (x[0])))
-    if not is_print:
+    if args.gitonly:
         for git, branch in git_list.items():
             if branch:
                 print(f"git clone {git} -b {branch}")
             else:
                 print(f"git clone {git}")
+    else:
+        for git_info in all_git_info:
+            for key,value in git_info.items():
+                if isinstance(value, list):
+                    for item in value:
+                        if isinstance(item, dict):
+                            for _k, _v in item.items():
+                                print(f"\t{_k}:\t{_v}")
+                else:
+                    print(f"{key}:\t{value}")
+            print("")
