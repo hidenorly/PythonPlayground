@@ -209,6 +209,7 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
 
 def get_git_list(all_git_info):
     git_list = {}
+    artifact_list = {}
 
     for git_info in all_git_info:
         for key,value in git_info.items():
@@ -216,11 +217,17 @@ def get_git_list(all_git_info):
                 for item in value:
                     if isinstance(item, dict):
                         if "url" in item and "branch" in item:
-                            git_list[item["url"]] = item["branch"]
+                            url = item["url"]
+                            branch = item["branch"]
+                            if url.endswith(".git") or url.startswith("git://"):
+                                git_list[url] = branch
+                            else:
+                                artifact_list[url] = branch
 
     git_list = dict(sorted(git_list.items(), key=lambda x: (x[0])))
+    artifact_list = dict(sorted(artifact_list.items(), key=lambda x: (x[0])))
 
-    return git_list
+    return git_list, artifact_list
 
 
 if __name__=="__main__":
@@ -235,7 +242,7 @@ if __name__=="__main__":
 
     clone_repos(yocto_repos, args.target, args.reset, args.branch)
     all_git_info = extract_git_src_uris()
-    git_list = get_git_list(all_git_info)
+    git_list, artifact_list = get_git_list(all_git_info)
 
     if args.gitonly:
         for git, branch in git_list.items():
@@ -243,6 +250,8 @@ if __name__=="__main__":
                 print(f"git clone {git} -b {branch}")
             else:
                 print(f"git clone {git}")
+        for git, branch in artifact_list.items():
+            print(f"wget {git} #{branch}")
     else:
         for git_info in all_git_info:
             for key,value in git_info.items():
