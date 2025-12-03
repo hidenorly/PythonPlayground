@@ -233,33 +233,35 @@ def get_git_list(all_git_info):
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
-    parser.add_argument('-b', '--branch', action='store', default=None, help='specify branch')
+    parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use , for multiple')
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
     parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git only')
 
 
     args = parser.parse_args()
 
-    clone_repos(yocto_repos, args.target, args.reset, args.branch)
-    all_git_info = extract_git_src_uris()
-    git_list, artifact_list = get_git_list(all_git_info)
+    branches = args.branch.split(",")
+    for branch in branches:
+        clone_repos(yocto_repos, args.target, args.reset, branch)
+        all_git_info = extract_git_src_uris()
+        git_list, artifact_list = get_git_list(all_git_info)
 
-    if args.gitonly:
-        for git, branch in git_list.items():
-            if branch:
-                print(f"git clone {git} -b {branch}")
-            else:
-                print(f"git clone {git}")
-        for git, branch in artifact_list.items():
-            print(f"wget {git} #{branch}")
-    else:
-        for git_info in all_git_info:
-            for key,value in git_info.items():
-                if isinstance(value, list):
-                    for item in value:
-                        if isinstance(item, dict):
-                            for _k, _v in item.items():
-                                print(f"\t{_k}:\t{_v}")
+        if args.gitonly:
+            for git, branch in git_list.items():
+                if branch:
+                    print(f"git clone {git} -b {branch}")
                 else:
-                    print(f"{key}:\t{value}")
-            print("")
+                    print(f"git clone {git}")
+            for git, branch in artifact_list.items():
+                print(f"wget {git} #{branch}")
+        else:
+            for git_info in all_git_info:
+                for key,value in git_info.items():
+                    if isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, dict):
+                                for _k, _v in item.items():
+                                    print(f"\t{_k}:\t{_v}")
+                    else:
+                        print(f"{key}:\t{value}")
+                print("")
