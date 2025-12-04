@@ -118,6 +118,7 @@ def _parse_srcrev_defs(content: str):
 
 def extract_git_src_uris(yocto_layers_path="yocto_components"):
     all_git_info: List[Dict[str, Any]] = []
+    all_components = {}
 
     for filepath in glob.glob(os.path.join(yocto_layers_path, '**', '*.bb'), recursive=True):
         filename = os.path.basename(filepath)
@@ -143,6 +144,8 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
                 guessed_pv = match.group(2) if match else None
                 if guessed_pv:
                     variables['PV'] = guessed_pv
+                if guessed_pv or not guessed_bpn in all_components:
+                    all_components[guessed_bpn] = guessed_pv
 
                 srcrev_defs = _parse_srcrev_defs(content)
 
@@ -204,7 +207,7 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
         except Exception as e:
             print(f"Error processing {filepath}: {e}")
 
-    return all_git_info
+    return all_git_info, all_components
 
 
 def get_git_list(all_git_info):
@@ -230,38 +233,114 @@ def get_git_list(all_git_info):
     return git_list, artifact_list
 
 
+def analyze(results, before, after):
+    before_gits = set(results[before]["git_list"].keys()) 
+    after_gits = set(results[after]["git_list"].keys()) 
+
+    added = list( after_gits - before_gits )
+    removed = list( before_gits - after_gits )
+    anded = before_gits & after_gits
+
+    diffed = []
+    sames = []
+    for _git in anded:
+        _before = str(results[before]["git_list"][_git]).strip()
+        _after = str(results[after]["git_list"][_git]).strip()
+        if _before == _after:
+            sames.append( (_git, _before) )
+        else:
+            diffed.append( (_git, _before, _after) )
+
+    return added, removed, diffed, sames
+
+
+def analyze_components(results, before, after):
+    before_components = set(results[before]["components_list"].keys()) 
+    after_components = set(results[after]["components_list"].keys()) 
+
+    added = list( after_components - before_components )
+    removed = list( before_components - after_components )
+    anded = before_components & after_components
+
+    diffed = []
+    sames = []
+    for _ in anded:
+        _before = str(results[before]["components_list"][_]).strip()
+        _after = str(results[after]["components_list"][_]).strip()
+        if _before == _after:
+            sames.append( (_, _before) )
+        else:
+            diffed.append( (_, _before, _after) )
+
+    return added, removed, diffed, sames
+
+
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
-    parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use , for multiple')
+    parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use ... for compare')
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
-    parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git only')
+    parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git(s) only')
+    parser.add_argument('-c', '--componentonly', action='store_true', default=False, help='Dump list of components only')
 
 
     args = parser.parse_args()
 
-    branches = args.branch.split(",")
+    is_print = True
+    branches = args.branch.split("...")
+    if len(branches)==2:
+        is_print = False
+    results = {}
     for branch in branches:
+        results[branch] = {}
         clone_repos(yocto_repos, args.target, args.reset, branch)
-        all_git_info = extract_git_src_uris()
+        all_git_info, all_components = extract_git_src_uris()
         git_list, artifact_list = get_git_list(all_git_info)
+        results[branch]["git_list"] = git_list
+        results[branch]["artifact_list"] = artifact_list
+        results[branch]["components_list"] = all_components
 
-        if args.gitonly:
-            for git, branch in git_list.items():
-                if branch:
-                    print(f"git clone {git} -b {branch}")
-                else:
-                    print(f"git clone {git}")
-            for git, branch in artifact_list.items():
-                print(f"wget {git} #{branch}")
+        if is_print:
+            if args.gitonly:
+                for git, branch in git_list.items():
+                        if branch:
+                            print(f"git clone {git} -b {branch}")
+                        else:
+                            print(f"git clone {git}")
+                for git, branch in artifact_list.items():
+                    print(f"wget {git} #{branch}")
+            else:
+                for git_info in all_git_info:
+                    for key,value in git_info.items():
+                        if isinstance(value, list):
+                            for item in value:
+                                if isinstance(item, dict):
+                                    for _k, _v in item.items():
+                                        print(f"\t{_k}:\t{_v}")
+                        else:
+                            print(f"{key}:\t{value}")
+                    print("")
+
+    if len(branches)==2:
+        before = branches[0]
+        after = branches[1]
+        if args.componentonly:
+            added, removed, diffed, sames = analyze_components(results, before, after)
         else:
-            for git_info in all_git_info:
-                for key,value in git_info.items():
-                    if isinstance(value, list):
-                        for item in value:
-                            if isinstance(item, dict):
-                                for _k, _v in item.items():
-                                    print(f"\t{_k}:\t{_v}")
-                    else:
-                        print(f"{key}:\t{value}")
-                print("")
+            added, removed, diffed, sames = analyze(results, before, after)
+
+        print(f"Added {before}...{after}")
+        for _git in added:
+            print(_git)
+        print(f"\n\nRemoved {before}...{after}")
+        for _git in removed:
+            print(_git)
+        print(f"\n\nDelta {before}...{after}")
+        for _git in diffed:
+            print(f"{_git[0]}: {_git[1]}...{_git[2]}")
+        print(f"\n\nSames {before}...{after}")
+        for _git in sames:
+            print(f"{_git[0]}: {_git[1]}")
+
+
