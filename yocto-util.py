@@ -237,8 +237,8 @@ def analyze(results, before, after):
     before_gits = set(results[before]["git_list"].keys()) 
     after_gits = set(results[after]["git_list"].keys()) 
 
-    added = list( after_gits - before_gits )
-    removed = list( before_gits - after_gits )
+    added = sorted(list( after_gits - before_gits ))
+    removed = sorted(list( before_gits - after_gits ))
     anded = before_gits & after_gits
 
     diffed = []
