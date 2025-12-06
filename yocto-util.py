@@ -233,9 +233,9 @@ def get_git_list(all_git_info):
     return git_list, artifact_list
 
 
-def analyze(results, before, after):
-    before_gits = set(results[before]["git_list"].keys()) 
-    after_gits = set(results[after]["git_list"].keys()) 
+def analyze(results, before, after, target_key="git_list"):
+    before_gits = set(results[before][target_key].keys()) 
+    after_gits = set(results[after][target_key].keys()) 
 
     added = sorted(list( after_gits - before_gits ))
     removed = sorted(list( before_gits - after_gits ))
@@ -244,33 +244,12 @@ def analyze(results, before, after):
     diffed = []
     sames = []
     for _git in anded:
-        _before = str(results[before]["git_list"][_git]).strip()
-        _after = str(results[after]["git_list"][_git]).strip()
+        _before = str(results[before][target_key][_git]).strip()
+        _after = str(results[after][target_key][_git]).strip()
         if _before == _after:
             sames.append( (_git, _before) )
         else:
             diffed.append( (_git, _before, _after) )
-
-    return added, removed, diffed, sames
-
-
-def analyze_components(results, before, after):
-    before_components = set(results[before]["components_list"].keys()) 
-    after_components = set(results[after]["components_list"].keys()) 
-
-    added = list( after_components - before_components )
-    removed = list( before_components - after_components )
-    anded = before_components & after_components
-
-    diffed = []
-    sames = []
-    for _ in anded:
-        _before = str(results[before]["components_list"][_]).strip()
-        _after = str(results[after]["components_list"][_]).strip()
-        if _before == _after:
-            sames.append( (_, _before) )
-        else:
-            diffed.append( (_, _before, _after) )
 
     return added, removed, diffed, sames
 
@@ -326,9 +305,9 @@ if __name__=="__main__":
         before = branches[0]
         after = branches[1]
         if args.componentonly:
-            added, removed, diffed, sames = analyze_components(results, before, after)
+            added, removed, diffed, sames = analyze(results, before, after, "components_list")
         else:
-            added, removed, diffed, sames = analyze(results, before, after)
+            added, removed, diffed, sames = analyze(results, before, after, "git_list")
 
         print(f"Added {before}...{after}")
         for _git in added:
