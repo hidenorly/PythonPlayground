@@ -255,6 +255,7 @@ def analyze(results, before, after, target_key="git_list"):
 
 
 
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
@@ -273,8 +274,11 @@ if __name__=="__main__":
     results = {}
     for branch in branches:
         results[branch] = {}
-        clone_repos(yocto_repos, args.target, args.reset, branch)
-        all_git_info, all_components = extract_git_src_uris()
+        clone_root_path = args.target
+        if branch:
+            clone_root_path = os.path.join(clone_root_path, branch)
+        clone_repos(yocto_repos, clone_root_path, args.reset, branch)
+        all_git_info, all_components = extract_git_src_uris(clone_root_path)
         git_list, artifact_list = get_git_list(all_git_info)
         results[branch]["git_list"] = git_list
         results[branch]["artifact_list"] = artifact_list
