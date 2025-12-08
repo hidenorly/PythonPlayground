@@ -213,6 +213,7 @@ def extract_git_src_uris(yocto_layers_path="yocto_components"):
 def get_git_list(all_git_info):
     git_list = {}
     artifact_list = {}
+    git_rev_list = {}
 
     for git_info in all_git_info:
         for key,value in git_info.items():
@@ -222,15 +223,19 @@ def get_git_list(all_git_info):
                         if "url" in item and "branch" in item:
                             url = item["url"]
                             branch = item["branch"]
+                            srcrev = None
+                            if "srcrev" in item:
+                                srcrev = item["srcrev"]
                             if url.endswith(".git") or url.startswith("git://"):
                                 git_list[url] = branch
+                                git_rev_list[url] = srcrev
                             else:
                                 artifact_list[url] = branch
 
     git_list = dict(sorted(git_list.items(), key=lambda x: (x[0])))
     artifact_list = dict(sorted(artifact_list.items(), key=lambda x: (x[0])))
 
-    return git_list, artifact_list
+    return git_list, git_rev_list, artifact_list
 
 
 def analyze(results, before, after, target_key="git_list"):
@@ -279,18 +284,20 @@ if __name__=="__main__":
             clone_root_path = os.path.join(clone_root_path, branch)
         clone_repos(yocto_repos, clone_root_path, args.reset, branch)
         all_git_info, all_components = extract_git_src_uris(clone_root_path)
-        git_list, artifact_list = get_git_list(all_git_info)
+        git_list, git_rev_list, artifact_list = get_git_list(all_git_info)
         results[branch]["git_list"] = git_list
+        results[branch]["git_rev_list"] = git_rev_list
         results[branch]["artifact_list"] = artifact_list
         results[branch]["components_list"] = all_components
 
         if is_print:
             if args.gitonly:
                 for git, branch in git_list.items():
+                        srcrev = git_rev_list[git]
                         if branch:
-                            print(f"git clone {git} -b {branch}")
+                            print(f"git clone {git} -b {branch}; git checkout {srcrev}")
                         else:
-                            print(f"git clone {git}")
+                            print(f"git clone {git}; git checkout {srcrev}")
                 for git, branch in artifact_list.items():
                     print(f"wget {git} #{branch}")
             else:
