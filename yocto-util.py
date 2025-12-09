@@ -319,6 +319,11 @@ if __name__=="__main__":
             added, removed, diffed, sames = analyze(results, before, after, "components_list")
         else:
             added, removed, diffed, sames = analyze(results, before, after, "git_list")
+            new_diffed = []
+            for _git in diffed:
+                _diff = (_git[0], results[before]["git_rev_list"][_git[0]], results[after]["git_rev_list"][_git[0]])
+                new_diffed.append(_diff)
+            diffed = new_diffed
 
         print(f"Added {before}...{after}")
         for _git in added:
