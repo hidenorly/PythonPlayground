@@ -29,7 +29,17 @@ yocto_repos = [
     # "git://git.yoctoproject.org/meta-virtualization",
 ]
 
+def exec_cmd_with_result(exec_cmd, exec_path):
+    result = subprocess.run(
+        exec_cmd,
+        cwd=exec_path,
+        check=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    return str(result)
+
 def clone_repos(repos, target_dir="yocto_components", isReset=False, branch=None):
+    result = ""
     if os.path.exists(target_dir) and isReset:
         try:
             print(f"rm -rf {target_dir}")
@@ -49,24 +59,18 @@ def clone_repos(repos, target_dir="yocto_components", isReset=False, branch=None
             exec_git_clone_cmd.append(branch)
 
         try:
-            subprocess.run(
-                exec_git_clone_cmd,
-                cwd=target_dir,
-                check=True
-            )
+            result += exec_cmd_with_result(exec_git_clone_cmd, target_dir)
             print(f"Successfully cloned {repo_name}")
         except subprocess.CalledProcessError as e:
             print(f"Error cloning {repo_name}: {e}")
             try:
                 #TODO: branch
-                subprocess.run(
-                    ["git", "pull"],
-                    cwd=target_dir,
-                    check=True
-                )
+                exec_cmd = ["git", "pull"]
+                result += exec_cmd_with_result(exec_cmd, target_dir)
                 print(f"Successfully cloned {repo_name}")
             except:
                 pass
+    return result
 
 EXCLUDES_BB_VARIABLE_KEYS = [
     "SUMMARY",
@@ -259,8 +263,6 @@ def analyze(results, before, after, target_key="git_list"):
     return added, removed, diffed, sames
 
 
-
-
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
@@ -268,7 +270,6 @@ if __name__=="__main__":
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
     parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git(s) only')
     parser.add_argument('-c', '--componentonly', action='store_true', default=False, help='Dump list of components only')
-
 
     args = parser.parse_args()
 
@@ -321,7 +322,7 @@ if __name__=="__main__":
             added, removed, diffed, sames = analyze(results, before, after, "git_list")
             new_diffed = []
             for _git in diffed:
-                _diff = (_git[0], results[before]["git_rev_list"][_git[0]], results[after]["git_rev_list"][_git[0]])
+                _diff = (_git[0], f"{_git[1]}::{results[before]["git_rev_list"][_git[0]]}", f"{_git[2]}::{results[after]["git_rev_list"][_git[0]]}", results[before]["git_rev_list"][_git[0]], results[after]["git_rev_list"][_git[0]])
                 new_diffed.append(_diff)
             diffed = new_diffed
 
@@ -337,5 +338,6 @@ if __name__=="__main__":
         print(f"\n\nSames {before}...{after}")
         for _git in sames:
             print(f"{_git[0]}: {_git[1]}")
+
 
 
