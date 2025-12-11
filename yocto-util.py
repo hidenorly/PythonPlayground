@@ -30,19 +30,22 @@ yocto_repos = [
 ]
 
 def exec_cmd_with_result(exec_cmd, exec_path):
+    if not os.path.exists(exec_path):
+        os.makedirs(exec_path)
+
     result = subprocess.run(
         exec_cmd,
         cwd=exec_path,
         check=True,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
-    return str(result)
+    return str(result.stdout)
 
 def clone_repos(repos, target_dir="yocto_components", isReset=False, branch=None):
     result = ""
     if os.path.exists(target_dir) and isReset:
         try:
-            print(f"rm -rf {target_dir}")
+            #print(f"rm -rf {target_dir}")
             shutil.rmtree(target_dir)
         except:
             pass
@@ -51,7 +54,7 @@ def clone_repos(repos, target_dir="yocto_components", isReset=False, branch=None
 
     for url in repos:
         repo_name = url.split('/')[-1]
-        print(f"Cloning {repo_name} from {url}...")
+        #print(f"Cloning {repo_name} from {url}...")
 
         exec_git_clone_cmd = ["git", "clone", url]
         if branch:
@@ -60,14 +63,14 @@ def clone_repos(repos, target_dir="yocto_components", isReset=False, branch=None
 
         try:
             result += exec_cmd_with_result(exec_git_clone_cmd, target_dir)
-            print(f"Successfully cloned {repo_name}")
+            #print(f"Successfully cloned {repo_name}")
         except subprocess.CalledProcessError as e:
-            print(f"Error cloning {repo_name}: {e}")
+            #print(f"Error cloning {repo_name}: {e}")
             try:
                 #TODO: branch
                 exec_cmd = ["git", "pull"]
                 result += exec_cmd_with_result(exec_cmd, target_dir)
-                print(f"Successfully cloned {repo_name}")
+                #print(f"Successfully cloned {repo_name}")
             except:
                 pass
     return result
@@ -262,6 +265,22 @@ def analyze(results, before, after, target_key="git_list"):
 
     return added, removed, diffed, sames
 
+def get_component_name_from_git_path(git_path):
+    result = str(git_path).split(".git")[0].strip()
+    return result.split("/")[-1]
+
+
+def get_git_log_list(work_root, git_path, before, after, isReset=False):
+    result = ""
+    clone_root_path = os.path.join(work_root, get_component_name_from_git_path(git_path))
+    clone_repos([git_path], work_root, isReset)
+    exec_cmd_git_log = ["git", "log", "--pretty=oneline", f"{before}..{after}", "--no-merges"]
+    try:
+        result = exec_cmd_with_result(exec_cmd_git_log, clone_root_path)
+    except:
+        pass
+    return str(result)
+
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -269,6 +288,7 @@ if __name__=="__main__":
     parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use ... for compare')
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
     parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git(s) only')
+    parser.add_argument('-l', '--gitlogdelta', action='store_true', default=False, help='Dump list of git log e.g. -b kirkstone...scarthgap -l')
     parser.add_argument('-c', '--componentonly', action='store_true', default=False, help='Dump list of components only')
 
     args = parser.parse_args()
@@ -322,22 +342,39 @@ if __name__=="__main__":
             added, removed, diffed, sames = analyze(results, before, after, "git_list")
             new_diffed = []
             for _git in diffed:
-                _diff = (_git[0], f"{_git[1]}::{results[before]["git_rev_list"][_git[0]]}", f"{_git[2]}::{results[after]["git_rev_list"][_git[0]]}", results[before]["git_rev_list"][_git[0]], results[after]["git_rev_list"][_git[0]])
+                _diff = (_git[0], f"{_git[1]}::{results[before]["git_rev_list"][_git[0]]}", f"{_git[2]}::{results[after]["git_rev_list"][_git[0]]}", _git[1], _git[2], results[before]["git_rev_list"][_git[0]], results[after]["git_rev_list"][_git[0]])
                 new_diffed.append(_diff)
             diffed = new_diffed
 
-        print(f"Added {before}...{after}")
-        for _git in added:
-            print(_git)
-        print(f"\n\nRemoved {before}...{after}")
-        for _git in removed:
-            print(_git)
-        print(f"\n\nDelta {before}...{after}")
-        for _git in diffed:
-            print(f"{_git[0]}: {_git[1]}...{_git[2]}")
-        print(f"\n\nSames {before}...{after}")
-        for _git in sames:
-            print(f"{_git[0]}: {_git[1]}")
-
+        is_just_print = not args.gitlogdelta
+        if is_just_print:
+            print(f"Added {before}...{after}")
+            for _git in added:
+                print(_git)
+            print(f"\n\nRemoved {before}...{after}")
+            for _git in removed:
+                print(_git)
+            print(f"\n\nDelta {before}...{after}")
+            for _git in diffed:
+                print(f"{_git[0]}: {_git[1]}...{_git[2]}")
+            print(f"\n\nSames {before}...{after}")
+            for _git in sames:
+                print(f"{_git[0]}: {_git[1]}")
+        else:
+            # git log delta mode
+            for _git in diffed:
+                before = _git[3]
+                after = _git[4]
+                if _git[5]:
+                    before = _git[5]
+                if _git[6]:
+                    after = _git[6]
+                result = get_git_log_list(args.target, _git[0], before, after, args.reset)
+                print(f"## {_git[0]} {_git[1]}..{_git[2]}")
+                print("")
+                print("```")
+                print(result)
+                print("```")
+                print("")
 
 
