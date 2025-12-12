@@ -270,11 +270,11 @@ def get_component_name_from_git_path(git_path):
     return result.split("/")[-1]
 
 
-def get_git_log_list(work_root, git_path, before, after, isReset=False):
+def get_git_log_list(work_root, git_path, before, after, pretty="oneline", isReset=False):
     result = ""
     clone_root_path = os.path.join(work_root, get_component_name_from_git_path(git_path))
     clone_repos([git_path], work_root, isReset)
-    exec_cmd_git_log = ["git", "log", "--pretty=oneline", f"{before}..{after}", "--no-merges"]
+    exec_cmd_git_log = ["git", "log", f"--pretty={pretty}", f"{before}..{after}", "--no-merges"]
     try:
         result = exec_cmd_with_result(exec_cmd_git_log, clone_root_path)
     except:
@@ -290,6 +290,7 @@ if __name__=="__main__":
     parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git(s) only')
     parser.add_argument('-l', '--gitlogdelta', action='store_true', default=False, help='Dump list of git log e.g. -b kirkstone...scarthgap -l')
     parser.add_argument('-c', '--componentonly', action='store_true', default=False, help='Dump list of components only')
+    parser.add_argument('-p', '--pretty', action='store', default="%h:%as:%s", help='Specify if you want to change the format')
 
     args = parser.parse_args()
 
@@ -369,7 +370,7 @@ if __name__=="__main__":
                     before = _git[5]
                 if _git[6]:
                     after = _git[6]
-                result = get_git_log_list(args.target, _git[0], before, after, args.reset)
+                result = get_git_log_list(args.target, _git[0], before, after, args.pretty, args.reset)
                 print(f"## {_git[0]} {_git[1]}..{_git[2]}")
                 print("")
                 print("```")
