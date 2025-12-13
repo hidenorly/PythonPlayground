@@ -282,6 +282,29 @@ def get_git_log_list(work_root, git_path, before, after, pretty="oneline", isRes
     return str(result)
 
 
+def print_git_and_artifactory(git_list, artifact_list):
+    for git, branch in git_list.items():
+        srcrev = git_rev_list[git]
+        if branch:
+            print(f"git clone {git} -b {branch}; git checkout {srcrev}")
+        else:
+            print(f"git clone {git}; git checkout {srcrev}")
+    for git, branch in artifact_list.items():
+        print(f"wget {git} #{branch}")
+
+def print_all_git_info(all_git_info):
+    for git_info in all_git_info:
+        for key,value in git_info.items():
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        for _k, _v in item.items():
+                            print(f"\t{_k}:\t{_v}")
+            else:
+                print(f"{key}:\t{value}")
+        print("")
+
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
@@ -314,25 +337,9 @@ if __name__=="__main__":
 
         if is_print:
             if args.gitonly:
-                for git, branch in git_list.items():
-                        srcrev = git_rev_list[git]
-                        if branch:
-                            print(f"git clone {git} -b {branch}; git checkout {srcrev}")
-                        else:
-                            print(f"git clone {git}; git checkout {srcrev}")
-                for git, branch in artifact_list.items():
-                    print(f"wget {git} #{branch}")
+                print_git_and_artifactory(git_list, artifact_list)
             else:
-                for git_info in all_git_info:
-                    for key,value in git_info.items():
-                        if isinstance(value, list):
-                            for item in value:
-                                if isinstance(item, dict):
-                                    for _k, _v in item.items():
-                                        print(f"\t{_k}:\t{_v}")
-                        else:
-                            print(f"{key}:\t{value}")
-                    print("")
+                print_all_git_info(all_git_info)
 
     if len(branches)==2:
         before = branches[0]
