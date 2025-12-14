@@ -304,6 +304,19 @@ def print_all_git_info(all_git_info):
                 print(f"{key}:\t{value}")
         print("")
 
+def print_add_removed_delta(before, after, added, removed, diffed):
+    print(f"Added {before}...{after}")
+    for _git in added:
+        print(_git)
+    print(f"\n\nRemoved {before}...{after}")
+    for _git in removed:
+        print(_git)
+    print(f"\n\nDelta {before}...{after}")
+    for _git in diffed:
+        print(f"{_git[0]}: {_git[1]}...{_git[2]}")
+    print(f"\n\nSames {before}...{after}")
+    for _git in sames:
+        print(f"{_git[0]}: {_git[1]}")
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -356,18 +369,7 @@ if __name__=="__main__":
 
         is_just_print = not args.gitlogdelta
         if is_just_print:
-            print(f"Added {before}...{after}")
-            for _git in added:
-                print(_git)
-            print(f"\n\nRemoved {before}...{after}")
-            for _git in removed:
-                print(_git)
-            print(f"\n\nDelta {before}...{after}")
-            for _git in diffed:
-                print(f"{_git[0]}: {_git[1]}...{_git[2]}")
-            print(f"\n\nSames {before}...{after}")
-            for _git in sames:
-                print(f"{_git[0]}: {_git[1]}")
+            print_add_removed_delta(before, after, added, removed, diffed)
         else:
             # git log delta mode
             for _git in diffed:
