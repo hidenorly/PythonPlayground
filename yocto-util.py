@@ -304,6 +304,24 @@ def print_all_git_info(all_git_info):
                 print(f"{key}:\t{value}")
         print("")
 
+
+def print_delta(before, after, diffed, target, pretty, reset=False):
+    for _git in diffed:
+        before = _git[3]
+        after = _git[4]
+        if _git[5]:
+            before = _git[5]
+        if _git[6]:
+            after = _git[6]
+        result = get_git_log_list(target, _git[0], before, after, pretty, reset)
+        print(f"## {_git[0]} {_git[1]}..{_git[2]}")
+        print("")
+        print("```")
+        print(result)
+        print("```")
+        print("")
+
+
 def print_add_removed_delta(before, after, added, removed, diffed):
     print(f"Added {before}...{after}")
     for _git in added:
@@ -367,24 +385,10 @@ if __name__=="__main__":
                 new_diffed.append(_diff)
             diffed = new_diffed
 
-        is_just_print = not args.gitlogdelta
-        if is_just_print:
-            print_add_removed_delta(before, after, added, removed, diffed)
-        else:
+        if args.gitlogdelta:
             # git log delta mode
-            for _git in diffed:
-                before = _git[3]
-                after = _git[4]
-                if _git[5]:
-                    before = _git[5]
-                if _git[6]:
-                    after = _git[6]
-                result = get_git_log_list(args.target, _git[0], before, after, args.pretty, args.reset)
-                print(f"## {_git[0]} {_git[1]}..{_git[2]}")
-                print("")
-                print("```")
-                print(result)
-                print("```")
-                print("")
+            print_delta(before, after, diffed, args.target, args.pretty, args.reset)
+        else:
+            print_add_removed_delta(before, after, added, removed, diffed)
 
 
