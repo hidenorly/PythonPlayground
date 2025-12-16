@@ -305,7 +305,7 @@ def print_all_git_info(all_git_info):
         print("")
 
 
-def print_delta(before, after, diffed, target, pretty, reset=False):
+def print_git_log_delta(before, after, diffed, target, pretty, reset=False):
     for _git in diffed:
         before = _git[3]
         after = _git[4]
@@ -372,12 +372,15 @@ if __name__=="__main__":
             else:
                 print_all_git_info(all_git_info)
 
+    # before_branch...after_branch analysis
     if len(branches)==2:
         before = branches[0]
         after = branches[1]
         if args.componentonly:
+            # component level mode (--componentonly)
             added, removed, diffed, sames = analyze(results, before, after, "components_list")
         else:
+            # git level mode (--gitonly or --gitlogdelta)
             added, removed, diffed, sames = analyze(results, before, after, "git_list")
             new_diffed = []
             for _git in diffed:
@@ -387,8 +390,8 @@ if __name__=="__main__":
 
         if args.gitlogdelta:
             # git log delta mode
-            print_delta(before, after, diffed, args.target, args.pretty, args.reset)
+            print_git_log_delta(before, after, diffed, args.target, args.pretty, args.reset)
         else:
+            # print componennt or git
             print_add_removed_delta(before, after, added, removed, diffed)
-
 
