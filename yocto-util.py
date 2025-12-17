@@ -305,6 +305,14 @@ def print_all_git_info(all_git_info):
         print("")
 
 
+def enhance_git_analyze_diffed_result(results, before, after, diffed):
+    new_diffed = []
+    for _git in diffed:
+        _diff = (_git[0], f"{_git[1]}::{results[before]["git_rev_list"][_git[0]]}", f"{_git[2]}::{results[after]["git_rev_list"][_git[0]]}", _git[1], _git[2], results[before]["git_rev_list"][_git[0]], results[after]["git_rev_list"][_git[0]])
+        new_diffed.append(_diff)
+    return new_diffed
+
+
 def print_git_log_delta(before, after, diffed, target, pretty, reset=False):
     for _git in diffed:
         before = _git[3]
@@ -335,6 +343,7 @@ def print_add_removed_delta(before, after, added, removed, diffed):
     print(f"\n\nSames {before}...{after}")
     for _git in sames:
         print(f"{_git[0]}: {_git[1]}")
+
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -382,11 +391,7 @@ if __name__=="__main__":
         else:
             # git level mode (--gitonly or --gitlogdelta)
             added, removed, diffed, sames = analyze(results, before, after, "git_list")
-            new_diffed = []
-            for _git in diffed:
-                _diff = (_git[0], f"{_git[1]}::{results[before]["git_rev_list"][_git[0]]}", f"{_git[2]}::{results[after]["git_rev_list"][_git[0]]}", _git[1], _git[2], results[before]["git_rev_list"][_git[0]], results[after]["git_rev_list"][_git[0]])
-                new_diffed.append(_diff)
-            diffed = new_diffed
+            diffed = enhance_git_analyze_diffed_result(results, before, after, diffed)
 
         if args.gitlogdelta:
             # git log delta mode
