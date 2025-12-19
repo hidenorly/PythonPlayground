@@ -325,12 +325,13 @@ def print_git_log_delta(before, after, diffed, target, pretty, grep, reset=False
         if _git[6]:
             after = _git[6]
         result = get_git_log_list(target, _git[0], before, after, pretty, grep, reset)
-        print(f"## {_git[0]} {_git[1]}..{_git[2]}")
-        print("")
-        print("```")
-        print(result)
-        print("```")
-        print("")
+        if result:
+            print(f"## {_git[0]} {_git[1]}..{_git[2]}")
+            print("")
+            print("```")
+            print(result)
+            print("```")
+            print("")
 
 
 def print_add_removed_delta(before, after, added, removed, diffed):
