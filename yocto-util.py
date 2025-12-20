@@ -276,6 +276,8 @@ def get_git_log_list(work_root, git_path, before, after, pretty="oneline", grep=
     clone_repos([git_path], work_root, isReset)
     exec_cmd_git_log = ["git", "log", f"--pretty={pretty}", f"{before}..{after}", "--no-merges"]
     if grep:
+        exec_cmd_git_log.append("--regexp-ignore-case")
+        exec_cmd_git_log.append("--extended-regexp")
         exec_cmd_git_log.append("--grep")
         exec_cmd_git_log.append(grep)
     try:
