@@ -274,7 +274,11 @@ def get_git_log_list(work_root, git_path, before, after, pretty="oneline", grep=
     result = ""
     clone_root_path = os.path.join(work_root, get_component_name_from_git_path(git_path))
     clone_repos([git_path], work_root, isReset)
-    exec_cmd_git_log = ["git", "log", f"--pretty={pretty}", f"{before}..{after}", "--no-merges"]
+    exec_cmd_git_log = ["git", "log"]
+    if pretty:
+        exec_cmd_git_log.append(f"--pretty={pretty}")
+    exec_cmd_git_log.append(f"{before}..{after}")
+    exec_cmd_git_log.append("--no-merges")
     if grep:
         exec_cmd_git_log.append("--regexp-ignore-case")
         exec_cmd_git_log.append("--extended-regexp")
