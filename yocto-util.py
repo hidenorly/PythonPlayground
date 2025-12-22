@@ -322,7 +322,24 @@ def enhance_git_analyze_diffed_result(results, before, after, diffed):
     return new_diffed
 
 
-def print_git_log_delta(before, after, diffed, target, pretty, grep, reset=False):
+COMMIT_RE = re.compile(r'^commit\s+([0-9a-f]{40})')
+
+def filter_git_result_with_grep(result, grep):
+    commit_id = None
+    for line in str(result).splitlines():
+        if not commit_id:
+            m_commit = COMMIT_RE.match(line)
+            if m_commit:
+                commit_id = m_commit.group(1)
+        else:
+            m = re.search(grep, line, re.IGNORECASE)
+            if m:
+                result = f"{commit_id}:{line[m.start():]}"
+                break
+    return result
+
+
+def print_git_log_delta(before, after, diffed, target, pretty, grep, extract_grep, reset=False):
     for _git in diffed:
         before = _git[3]
         after = _git[4]
@@ -330,7 +347,9 @@ def print_git_log_delta(before, after, diffed, target, pretty, grep, reset=False
             before = _git[5]
         if _git[6]:
             after = _git[6]
-        result = get_git_log_list(target, _git[0], before, after, pretty, grep, reset)
+        result = get_git_log_list(target, _git[0], before, after, (None if extract_grep else pretty), grep, reset)
+        if extract_grep:
+            result = filter_git_result_with_grep(result, grep)
         if result:
             print(f"## {_git[0]} {_git[1]}..{_git[2]}")
             print("")
@@ -365,6 +384,7 @@ if __name__=="__main__":
     parser.add_argument('-c', '--componentonly', action='store_true', default=False, help='Dump list of components only')
     parser.add_argument('-p', '--pretty', action='store', default="%h:%as:%s", help='Specify if you want to change the format')
     parser.add_argument('-s', '--grep', action='store', default=None, help='Specify --grep for git log on --gitlogdelta(-l)')
+    parser.add_argument('-e', '--grepextract', action='store_true', default=False, help='Specify if you output on grep result. Use with --grep')
 
     args = parser.parse_args()
 
@@ -406,7 +426,7 @@ if __name__=="__main__":
 
         if args.gitlogdelta:
             # git log delta mode
-            print_git_log_delta(before, after, diffed, args.target, args.pretty, args.grep, args.reset)
+            print_git_log_delta(before, after, diffed, args.target, args.pretty, args.grep, args.grepextract, args.reset)
         else:
             # print componennt or git
             print_add_removed_delta(before, after, added, removed, diffed)
