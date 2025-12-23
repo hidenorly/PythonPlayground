@@ -22,6 +22,8 @@ import shutil
 import glob
 import re
 from typing import List, Dict, Any, Tuple
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 yocto_repos = [
     #"git://git.yoctoproject.org/poky",
@@ -374,6 +376,53 @@ def print_add_removed_delta(before, after, added, removed, diffed):
         print(f"{_git[0]}: {_git[1]}")
 
 
+def generate_repo_manifest(all_git_info):
+    root = ET.Element("manifest")
+
+    remote = ET.SubElement(root, "remote")
+    remote.set("name", "origin")
+    remote.set("fetch", ".")
+
+    added_projects = set()
+
+    for recipe in all_git_info:
+        recipe_name = recipe["recipe_name"]
+        
+        for source in recipe["git_repos"]:
+            url = source["url"]
+            srcrev = source["srcrev"]
+            branch = source["branch"]
+            tag = source["tag"]
+            source_name = source["name"]
+
+            project_name = f"{recipe_name}"
+            if source_name:
+                project_name += f"-{source_name}"
+            
+            revision = srcrev or tag or branch or "master"
+
+            project_key = (url, revision)
+            if project_key in added_projects:
+                continue
+            
+            project = ET.SubElement(root, "project")
+            project.set("name", project_name)
+            project.set("remote", "origin")
+            project.set("revision", revision)
+            
+            project.set("name", project_name)
+            project.set("path", f"{project_name}")
+            
+            project.set("fetch", url)
+
+            added_projects.add(project_key)
+
+    xml_str = ET.tostring(root, encoding='utf-8')
+    pretty_xml_str = minidom.parseString(xml_str).toprettyxml(indent="  ")
+    print(str(pretty_xml_str))
+
+
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
@@ -385,6 +434,7 @@ if __name__=="__main__":
     parser.add_argument('-p', '--pretty', action='store', default="%h:%as:%s", help='Specify if you want to change the format')
     parser.add_argument('-s', '--grep', action='store', default=None, help='Specify --grep for git log on --gitlogdelta(-l)')
     parser.add_argument('-e', '--grepextract', action='store_true', default=False, help='Specify if you output on grep result. Use with --grep')
+    parser.add_argument('-m', '--manifest', action='store_true', default=False, help='Specify if you want to output manifest.xml (exclusive to the others)')
 
     args = parser.parse_args()
 
@@ -407,7 +457,9 @@ if __name__=="__main__":
         results[branch]["components_list"] = all_components
 
         if is_print:
-            if args.gitonly:
+            if args.manifest:
+                generate_repo_manifest(all_git_info)
+            elif args.gitonly:
                 print_git_and_artifactory(git_list, artifact_list)
             else:
                 print_all_git_info(all_git_info)
