@@ -26,9 +26,9 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 yocto_repos = [
-    #"git://git.yoctoproject.org/poky",
+    "git://git.yoctoproject.org/poky",
     "git://git.openembedded.org/meta-openembedded",
-    # "git://git.yoctoproject.org/meta-virtualization",
+    "git://git.yoctoproject.org/meta-virtualization",
 ]
 
 def exec_cmd_with_result(exec_cmd, exec_path):
