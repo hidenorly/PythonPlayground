@@ -25,11 +25,11 @@ from typing import List, Dict, Any, Tuple
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
-yocto_repos = [
-    "git://git.yoctoproject.org/poky",
-    "git://git.openembedded.org/meta-openembedded",
-    "git://git.yoctoproject.org/meta-virtualization",
-]
+yocto_repos_kv = {
+    "poky" : "git://git.yoctoproject.org/poky",
+    "openembedded" : "git://git.openembedded.org/meta-openembedded",
+    "virtualization" : "git://git.yoctoproject.org/meta-virtualization",
+}
 
 def exec_cmd_with_result(exec_cmd, exec_path):
     if not os.path.exists(exec_path):
@@ -425,6 +425,7 @@ def generate_repo_manifest(all_git_info):
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-y', '--yocto', action='store', default="poky|openembedded|virtualization", help='Specify target poky|openembedded|virtualization')
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
     parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use ... for compare')
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
@@ -437,6 +438,12 @@ if __name__=="__main__":
     parser.add_argument('-m', '--manifest', action='store_true', default=False, help='Specify if you want to output manifest.xml (exclusive to the others)')
 
     args = parser.parse_args()
+
+    yocto_targets = args.yocto.split("|")
+    yocto_repos = []
+    for k in yocto_targets:
+        if k in yocto_repos_kv:
+            yocto_repos.append( yocto_repos_kv[k] )
 
     is_print = True
     branches = args.branch.split("...")
