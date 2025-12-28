@@ -18,15 +18,87 @@
 
 import argparse
 import subprocess
-sdk_path = subprocess.check_output(
-    ["xcrun", "--show-sdk-path"], text=True
-).strip()
 from clang.cindex import Config
-Config.set_library_file("/opt/homebrew/opt/llvm/lib/libclang.dylib")
+import json
+import platform
+
+def load_libclang():
+    candidates = [
+        "/opt/homebrew/opt/llvm/lib/libclang.dylib",     # macOS Homebrew (arm64)
+        "/usr/local/opt/llvm/lib/libclang.dylib",        # macOS Homebrew (x86)
+        "/usr/lib/llvm-18/lib/libclang.so",              # Linux
+        "/usr/lib/llvm-17/lib/libclang.so",
+        "/usr/lib/llvm-16/lib/libclang.so",
+    ]
+
+    for path in candidates:
+        try:
+            Config.set_library_file(path)
+            return path
+        except Exception:
+            pass
+
+    raise RuntimeError("libclang not found")
+
+# needs to load before importing other of clang.cindex
+load_libclang()
 from clang.cindex import Index, CursorKind
 
 
-from clang.cindex import CursorKind
+def detect_platform():
+    system = platform.system()
+    if system == "Darwin":
+        return "macos"
+    elif system == "Linux":
+        return "linux"
+    else:
+        raise RuntimeError(f"Unsupported OS: {system}")
+
+
+def get_sysroot(os_type):
+    if os_type == "macos":
+        return subprocess.check_output(
+            ["xcrun", "--show-sdk-path"], text=True
+        ).strip()
+    elif os_type == "linux":
+        return None
+    return None
+
+
+def get_std_include_paths():
+    cmd = ["clang++", "-E", "-x", "c++", "-", "-v"]
+    p = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    _, err = p.communicate("")
+    paths = []
+    capture = False
+    for line in err.splitlines():
+        if "#include <...> search starts here:" in line:
+            capture = True
+            continue
+        if "End of search list." in line:
+            break
+        if capture:
+            paths.append(line.strip())
+    return paths
+
+
+def get_compile_args_from_db(header):
+    try:
+        with open("compile_commands.json") as f:
+            db = json.load(f)
+        for e in db:
+            if header in e["file"]:
+                return e["arguments"]
+    except Exception:
+        pass
+    return None
+
 
 def has_default_arg(param_cursor):
     for c in param_cursor.get_children():
@@ -42,18 +114,22 @@ def has_default_arg(param_cursor):
     return False
 
 
-
 def extract_c_api(header):
+    args = ["-x", "c++", "-std=c++20"]
+
+    sysroot = get_sysroot(detect_platform())
+    if sysroot:
+        args.append(f"-isysroot{sysroot}")
+
+    cc_args = get_compile_args_from_db(header)
+    if cc_args:
+        args = cc_args
+    else:
+        for p in get_std_include_paths():
+            args.append(f"-I{p}")
+
     idx = Index.create()
-    tu = idx.parse(
-        header,
-        args=[
-            "-x", "c++",
-            "-std=c++20",
-            f"-isysroot{sdk_path}",
-            "-I/opt/homebrew/opt/llvm/include/c++/v1",
-        ],
-    )
+    tu = idx.parse(header, args=args)
 
     api = {"functions": {}}
 
@@ -76,30 +152,42 @@ def extract_c_api(header):
 
         api["functions"][name] = {
             "return": ret_type,
-            "params": params,
-            "location": str(c.location.file),
+            "params": params
         }
 
     return api
 
 
 
-
 def detect_breaking(old, new):
-    breaking = []
+    removed = []
+    changed = []
+    added = []
 
+    # removed case
     for f in old["functions"]:
         if f not in new["functions"]:
-            breaking.append(f"Function removed: {f}")
+            removed.append( (f, old["functions"][f]) )
 
+    # signature change case
     for f, sig in new["functions"].items():
         if f in old["functions"] and sig != old["functions"][f]:
-            old_func = old["functions"][f] if f in old["functions"] else None
-            new_func = new["functions"][f] if f in new["functions"] else None
-            breaking.append((f"Signature changed: {f}", old_func, new_func))
+            old_func = old["functions"][f]
+            new_func = new["functions"][f]
+            changed.append((f, old_func, new_func))
 
-    return breaking
+    # just added case
+    for f in new["functions"]:
+        if f not in old["functions"]:
+            added.append( (f, new["functions"][f]) )
 
+    return removed, changed, added
+
+
+def print_desc(desc, func, old, new):
+    print(f"{desc} : {func}")
+    print(f"\told: {str(old)}")
+    print(f"\tnew: {str(new)}")
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Api Check', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -115,9 +203,9 @@ if __name__=="__main__":
             api_signatures.append( _signature )
             #print(str(_signature))
 
-        breakings = detect_breaking( api_signatures[0], api_signatures[1] )
+        removed, changed, added = detect_breaking( api_signatures[0], api_signatures[1] )
 
-        for a_break in breakings:
-            print(a_break[0])
-            print(f"\told: {str(a_break[1])}")
-            print(f"\tnew: {str(a_break[2])}")
+        for a_break in removed:
+            print_desc("Function removed", a_break[0], a_break[1], None)
+        for a_break in changed:
+            print_desc("Signature changed", a_break[0], a_break[1], a_break[2])
