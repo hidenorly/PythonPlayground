@@ -184,10 +184,11 @@ def detect_breaking(old, new):
     return removed, changed, added
 
 
-def print_desc(desc, func, old, new):
+def print_desc(desc, func, old_path, old, new_path, new):
     print(f"{desc} : {func}")
-    print(f"\told: {str(old)}")
-    print(f"\tnew: {str(new)}")
+    print(f"\t{old_path}: {str(old)}")
+    print(f"\t{new_path}: {str(new)}")
+
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Api Check', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -204,8 +205,10 @@ if __name__=="__main__":
             #print(str(_signature))
 
         removed, changed, added = detect_breaking( api_signatures[0], api_signatures[1] )
+        old_path = args.args[0]
+        new_path = args.args[1]
 
         for a_break in removed:
-            print_desc("Function removed", a_break[0], a_break[1], None)
+            print_desc("Function removed", a_break[0], old_path, a_break[1], new_path, None)
         for a_break in changed:
-            print_desc("Signature changed", a_break[0], a_break[1], a_break[2])
+            print_desc("Signature changed", a_break[0], old_path, a_break[1], new_path, a_break[2])
