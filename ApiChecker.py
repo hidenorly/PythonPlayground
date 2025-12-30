@@ -167,7 +167,7 @@ def detect_breaking(old, new):
     # removed case
     for f in old["functions"]:
         if f not in new["functions"]:
-            removed.append( (f, old["functions"][f]) )
+            removed.append( (f, old["functions"][f], None) )
 
     # signature change case
     for f, sig in new["functions"].items():
@@ -179,7 +179,7 @@ def detect_breaking(old, new):
     # just added case
     for f in new["functions"]:
         if f not in old["functions"]:
-            added.append( (f, new["functions"][f]) )
+            added.append( (f, None, new["functions"][f]) )
 
     return removed, changed, added
 
@@ -193,7 +193,7 @@ def print_desc(desc, func, old_path, old, new_path, new):
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Api Check', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('args', nargs='*', help='old_file new_file')
-    #parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
+    parser.add_argument('-a', '--added', action='store_true', default=False, help='If you want to dump added functions too')
 
     args = parser.parse_args()
 
@@ -209,6 +209,11 @@ if __name__=="__main__":
         new_path = args.args[1]
 
         for a_break in removed:
-            print_desc("Function removed", a_break[0], old_path, a_break[1], new_path, None)
+            print_desc("Function removed", a_break[0], old_path, a_break[1], new_path, a_break[2])
+        print("")
         for a_break in changed:
             print_desc("Signature changed", a_break[0], old_path, a_break[1], new_path, a_break[2])
+        print("")
+        if args.added:
+            for a_break in added:
+                print_desc("Function added", a_break[0], old_path, a_break[1], new_path, a_break[2])
