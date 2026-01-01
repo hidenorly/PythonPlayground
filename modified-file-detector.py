@@ -18,11 +18,14 @@
 import argparse
 import subprocess
 
-def changed_files(git_path, from_shaish, to_shaish):
+def changed_files(git_path, from_shaish, to_shaish, file_extensions):
 	try:
 		cmd = ["git", "diff", "--name-only", f"{from_shaish}..{to_shaish}"]
 		out = subprocess.check_output(cmd, cwd=git_path, text=True)
-		return out.splitlines()
+		return [
+			f for f in out.splitlines()
+			if f.endswith(tuple(file_extensions))
+	    ]
 	except:
 		return []
 
@@ -30,11 +33,16 @@ if __name__=="__main__":
 	parser = argparse.ArgumentParser(description='modified file detectpr', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('-t', '--target', action='store', default=".", help='specify git directory')
 	parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use .. for compare')
+	parser.add_argument('-i', '--interested', action='store', default="h|hxx|hpp|proto|capnp|dart", help='specify interested file extensions (separator:|)')
 
 	args = parser.parse_args()
 
 	branches = args.branch.split("..")
+	interests = args.interested.split("|")
+	file_extensions = []
+	for ext in interests:
+		file_extensions.append(f".{ext}")
 	if len(branches)==2:
-		changed_files = changed_files(args.target, branches[0], branches[1])
+		changed_files = changed_files(args.target, branches[0], branches[1], file_extensions)
 		for file in changed_files:
 			print(file)
