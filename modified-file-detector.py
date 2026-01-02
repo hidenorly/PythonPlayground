@@ -29,6 +29,11 @@ def changed_files(git_path, from_shaish, to_shaish, file_extensions):
 	except:
 		return []
 
+def get_tail(git_path):
+	cmd = ["git", "log", "--pretty=%H"]
+	out = subprocess.check_output(cmd, cwd=git_path, text=True)
+	return out.splitlines()[-1]
+
 if __name__=="__main__":
 	parser = argparse.ArgumentParser(description='modified file detectpr', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('-t', '--target', action='store', default=".", help='specify git directory')
@@ -42,7 +47,10 @@ if __name__=="__main__":
 	file_extensions = []
 	for ext in interests:
 		file_extensions.append(f".{ext}")
-	if len(branches)==2:
-		changed_files = changed_files(args.target, branches[0], branches[1], file_extensions)
-		for file in changed_files:
-			print(file)
+	if len(branches)!=2:
+		if not branches[0]:
+			branches[0]="HEAD"
+		branches = [get_tail(args.target), branches[0]]
+	changed_files = changed_files(args.target, branches[0], branches[1], file_extensions)
+	for file in changed_files:
+		print(file)
