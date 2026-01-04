@@ -189,6 +189,14 @@ def print_desc(desc, func, old_path, old, new_path, new):
     print(f"\t{old_path}: {str(old)}")
     print(f"\t{new_path}: {str(new)}")
 
+def dump_results(breaking, desc, old_path, new_path):
+    is_output = False
+    for a_break in breaking:
+        print_desc(desc, a_break[0], old_path, a_break[1], new_path, a_break[2])
+        is_output = True
+    if is_output:
+        print("")
+
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Api Check', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -202,18 +210,12 @@ if __name__=="__main__":
         for path in args.args:
             _signature = extract_c_api(path)
             api_signatures.append( _signature )
-            #print(str(_signature))
 
         removed, changed, added = detect_breaking( api_signatures[0], api_signatures[1] )
         old_path = args.args[0]
         new_path = args.args[1]
 
-        for a_break in removed:
-            print_desc("Function removed", a_break[0], old_path, a_break[1], new_path, a_break[2])
-        print("")
-        for a_break in changed:
-            print_desc("Signature changed", a_break[0], old_path, a_break[1], new_path, a_break[2])
-        print("")
+        dump_results(removed, "Function removed", old_path, new_path)
+        dump_results(changed, "Signature changed", old_path, new_path)
         if args.added:
-            for a_break in added:
-                print_desc("Function added", a_break[0], old_path, a_break[1], new_path, a_break[2])
+            dump_results(added, "Function added", old_path, new_path)
