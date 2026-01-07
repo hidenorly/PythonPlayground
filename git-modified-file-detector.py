@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+# coding: utf-8
+#   Copyright 2025 hidenorly
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+
+
+import argparse
+from GitUtil import GitUtil
+
+if __name__=="__main__":
+	parser = argparse.ArgumentParser(description='modified file detectpr', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+	parser.add_argument('-t', '--target', action='store', default=".", help='specify git directory')
+	parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use .. for compare')
+	parser.add_argument('-i', '--interested', action='store', default="h|hxx|hpp|proto|capnp|dart", help='specify interested file extensions (separator:|)')
+
+	args = parser.parse_args()
+
+	branches = args.branch.split("..")
+	interests = args.interested.split("|")
+	file_extensions = []
+	for ext in interests:
+		file_extensions.append(f".{ext}")
+	if len(branches)!=2:
+		if not branches[0]:
+			branches[0]="HEAD"
+		branches = [GitUtil.get_tail(args.target), branches[0]]
+	changed_files = GitUtil.changed_files(args.target, branches[0], branches[1], file_extensions)
+	for file in changed_files:
+		print(file)
+		old = GitUtil.show(args.target, branches[0], file)
+		new = GitUtil.show(args.target, branches[1], file)
+		print("old:")
+		print(str(old))
+		print("\nnew:")
+		print(str(new))
