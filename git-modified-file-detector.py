@@ -25,6 +25,37 @@ class FileUtil:
 		with open(path, 'w', encoding='utf-8', errors='ignore') as f:
 			f.writelines(lines)
 
+
+def extract_git_old_new(git_path, temp_path, branches, interests):
+	if len(branches)!=2:
+		if not branches[0]:
+			branches[0]="HEAD"
+		branches = [GitUtil.get_tail(git_path), branches[0]]
+	changed_files = GitUtil.changed_files(git_path, branches[0], branches[1], file_extensions)
+
+	changed = {}
+
+	for file in changed_files:
+		contents = []
+		contents.append( GitUtil.show(git_path, branches[0], file) )
+		contents.append( GitUtil.show(git_path, branches[1], file) )
+		if contents[0] and contents[1]:
+			git_name = GitUtil.get_git_name(git_path)
+			temp_out_path = os.path.join(tmp_path, git_name)
+			for branch, content in zip(branches, contents):
+				temp_out_file_dir = os.path.join(temp_out_path, branch)
+				if not os.path.exists(temp_out_file_dir):
+					os.makedirs(temp_out_file_dir)
+				file_out_path = os.path.join(temp_out_file_dir, file)
+				FileUtil.write_file( file_out_path , content )
+				if not file in changed:
+					changed[file] = []
+				changed[file].append( file_out_path )
+
+	return changed
+
+
+
 if __name__=="__main__":
 	parser = argparse.ArgumentParser(description='modified file detectpr', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('-g', '--git', action='store', default=".", help='specify git directory')
@@ -42,21 +73,11 @@ if __name__=="__main__":
 	file_extensions = []
 	for ext in interests:
 		file_extensions.append(f".{ext}")
-	if len(branches)!=2:
-		if not branches[0]:
-			branches[0]="HEAD"
-		branches = [GitUtil.get_tail(git_path), branches[0]]
-	changed_files = GitUtil.changed_files(git_path, branches[0], branches[1], file_extensions)
-	for file in changed_files:
-		print(file)
-		contents = []
-		contents.append( GitUtil.show(git_path, branches[0], file) )
-		contents.append( GitUtil.show(git_path, branches[1], file) )
-		if contents[0] and contents[1]:
-			git_name = GitUtil.get_git_name(git_path)
-			temp_out_path = os.path.join(tmp_path, git_name)
-			for branch, content in zip(branches, contents):
-				temp_out_file_dir = os.path.join(temp_out_path, branch)
-				if not os.path.exists(temp_out_file_dir):
-					os.makedirs(temp_out_file_dir)
-				FileUtil.write_file( os.path.join(temp_out_file_dir, file), content )
+
+
+	changes = extract_git_old_new( git_path, tmp_path, branches, file_extensions )
+	for file, a_changes in changes.items():
+		for change in a_changes:
+			print(f"{file}:{change}")
+		print("")
+
