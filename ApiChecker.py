@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
-#   Copyright 2025 hidenorly
+#   Copyright 2025, 2026 hidenorly
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -114,6 +114,11 @@ class CAbiUtil:
                 return True
         return False
 
+    def safe_kind(cursor):
+        try:
+            return cursor.kind
+        except ValueError:
+            return None
 
     def extract_c_api(header):
         args = ["-x", "c++", "-std=c++20"]
@@ -135,7 +140,8 @@ class CAbiUtil:
         api = {"functions": {}}
 
         for c in tu.cursor.walk_preorder():
-            if c.kind not in (
+            kind = CAbiUtil.safe_kind(c)
+            if kind not in (
                 CAbiUtil.CursorKind.FUNCTION_DECL,
                 CAbiUtil.CursorKind.CXX_METHOD,
             ):
