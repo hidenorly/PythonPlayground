@@ -26,6 +26,7 @@ if __name__=="__main__":
     parser.add_argument('-t', '--target', action='store', default="./yocto_components", help='specify git clone root')
     parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use ... for compare')
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
+    parser.add_argument('-f', '--local', action='store_true', default=False, help='Specify if want to parse .bb under -t folder')
     parser.add_argument('-g', '--gitonly', action='store_true', default=False, help='Dump list of git(s) only')
     parser.add_argument('-l', '--gitlogdelta', action='store_true', default=False, help='Dump list of git log e.g. -b kirkstone...scarthgap -l')
     parser.add_argument('-c', '--componentonly', action='store_true', default=False, help='Dump list of components only')
@@ -50,9 +51,10 @@ if __name__=="__main__":
     for branch in branches:
         results[branch] = {}
         clone_root_path = args.target
-        if branch:
-            clone_root_path = os.path.join(clone_root_path, branch)
-        YoctoUtil.clone_repos(yocto_repos, clone_root_path, args.reset, branch)
+        if args.local:
+            if branch:
+                clone_root_path = os.path.join(clone_root_path, branch)
+            YoctoUtil.clone_repos(yocto_repos, clone_root_path, args.reset, branch)
         all_git_info, all_components = YoctoUtil.extract_git_src_uris(clone_root_path)
         git_list, git_rev_list, artifact_list = YoctoUtil.get_git_list(all_git_info)
         results[branch]["git_list"] = git_list
@@ -64,7 +66,7 @@ if __name__=="__main__":
             if args.manifest:
                 YoctoUtil.generate_repo_manifest(all_git_info)
             elif args.gitonly:
-                YoctoUtil.print_git_and_artifactory(git_list, artifact_list)
+                YoctoUtil.print_git_and_artifactory(git_list, artifact_list, git_rev_list)
             else:
                 YoctoUtil.print_all_git_info(all_git_info)
 
