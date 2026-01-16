@@ -251,7 +251,7 @@ class YoctoUtil:
         return str(result)
 
 
-    def print_git_and_artifactory(git_list, artifact_list):
+    def print_git_and_artifactory(git_list, artifact_list, git_rev_list):
         for git, branch in git_list.items():
             srcrev = git_rev_list[git]
             if branch:
@@ -352,6 +352,8 @@ class YoctoUtil:
             
             for source in recipe["git_repos"]:
                 url = source["url"]
+                if not url.endswith(".git") and not url.startswith("git://"):
+                    continue
                 srcrev = source["srcrev"]
                 branch = source["branch"]
                 tag = source["tag"]
