@@ -69,13 +69,17 @@ class ModifiedGitChecker:
 		return git_path
 
 
-	def check_abi_and_dump(target_file, target_paths, is_print_compatible=True):
+	def check_abi(target_file, target_paths):
 		api_signatures = []
 		for path in target_paths:
 			_signature = CAbiUtil.extract_c_api(path)
 			api_signatures.append( _signature )
 
-		removed, changed, added = CAbiUtil.detect_breaking( api_signatures[0], api_signatures[1] )
+		return CAbiUtil.detect_breaking( api_signatures[0], api_signatures[1] )
+
+
+	def check_abi_and_dump(target_file, target_paths, is_print_compatible=True):
+		removed, changed, added = ModifiedGitChecker.check_abi(target_file, target_paths)
 		old_path = target_paths[0]
 		new_path = target_paths[1]
 
