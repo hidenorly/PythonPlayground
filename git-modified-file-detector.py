@@ -56,17 +56,6 @@ def extract_git_old_new(git_path, tmp_path, branches, interests):
 
 	return changed
 
-def ensure_git_path(git_path, tmp_clone_path):
-	if git_path.startswith(("https://", "git://")) or git_path.endswith(".git"):
-		# clone it
-		cloned_git_path = GitUtil.clone(git_path, tmp_clone_path)
-		if cloned_git_path:
-			git_path = cloned_git_path
-		else:
-			print(f"Unable to clone {git_path}")
-	git_path = os.path.abspath(os.path.expanduser(git_path))
-
-	return git_path
 
 
 if __name__=="__main__":
@@ -82,7 +71,15 @@ if __name__=="__main__":
 	branches = args.branch.split("..")
 	interests = args.interested.split("|")
 
-	git_path = ensure_git_path(args.git, os.path.join(tmp_path, "srcs"))
+	git_path = args.git
+	if git_path.startswith(("https://", "git://")) or git_path.endswith(".git"):
+		# clone it
+		cloned_git_path = GitUtil.clone(git_path, os.path.join(tmp_path, "srcs"))
+		if cloned_git_path:
+			git_path = cloned_git_path
+		else:
+			print(f"Unable to clone {git_path}")
+	git_path = os.path.abspath(os.path.expanduser(git_path))
 
 	file_extensions = []
 	for ext in interests:
