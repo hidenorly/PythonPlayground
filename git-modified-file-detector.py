@@ -56,6 +56,37 @@ def extract_git_old_new(git_path, tmp_path, branches, interests):
 
 	return changed
 
+def ensure_git_path(git_path, tmp_clone_path):
+	if git_path.startswith(("https://", "git://")) or git_path.endswith(".git"):
+		# clone it
+		cloned_git_path = GitUtil.clone(git_path, tmp_clone_path)
+		if cloned_git_path:
+			git_path = cloned_git_path
+		else:
+			print(f"Unable to clone {git_path}")
+	git_path = os.path.abspath(os.path.expanduser(git_path))
+
+	return git_path
+
+
+def check_abi_and_dump(target_file, target_paths, is_print_compatible=True):
+	api_signatures = []
+	for path in target_paths:
+		_signature = CAbiUtil.extract_c_api(path)
+		api_signatures.append( _signature )
+
+	removed, changed, added = CAbiUtil.detect_breaking( api_signatures[0], api_signatures[1] )
+	old_path = target_paths[0]
+	new_path = target_paths[1]
+
+	if removed or changed:
+		# incompatible case
+		CAbiUtil.dump_results(removed, "Function removed", old_path, new_path)
+		CAbiUtil.dump_results(changed, "Signature changed", old_path, new_path)
+	elif is_print_compatible:
+		# compatible case
+		#CAbiUtil.dump_results(added, "Function added", old_path, new_path)
+		print(f"No incompatible changes...{target_file}")
 
 
 if __name__=="__main__":
@@ -71,15 +102,7 @@ if __name__=="__main__":
 	branches = args.branch.split("..")
 	interests = args.interested.split("|")
 
-	git_path = args.git
-	if git_path.startswith(("https://", "git://")) or git_path.endswith(".git"):
-		# clone it
-		cloned_git_path = GitUtil.clone(git_path, os.path.join(tmp_path, "srcs"))
-		if cloned_git_path:
-			git_path = cloned_git_path
-		else:
-			print(f"Unable to clone {git_path}")
-	git_path = os.path.abspath(os.path.expanduser(git_path))
+	git_path = ensure_git_path(args.git, os.path.join(tmp_path, "srcs"))
 
 	file_extensions = []
 	for ext in interests:
@@ -87,20 +110,4 @@ if __name__=="__main__":
 
 	changes = extract_git_old_new( git_path, tmp_path, branches, file_extensions )
 	for file, a_changes in changes.items():
-		api_signatures = []
-		for path in a_changes:
-			_signature = CAbiUtil.extract_c_api(path)
-			api_signatures.append( _signature )
-
-		removed, changed, added = CAbiUtil.detect_breaking( api_signatures[0], api_signatures[1] )
-		old_path = a_changes[0]
-		new_path = a_changes[1]
-
-		if removed or changed:
-			# incompatible case
-			CAbiUtil.dump_results(removed, "Function removed", old_path, new_path)
-			CAbiUtil.dump_results(changed, "Signature changed", old_path, new_path)
-		else:
-			# compatible case
-			#CAbiUtil.dump_results(added, "Function added", old_path, new_path)
-			print(f"No incompatible changes...{file}")
+		check_abi_and_dump(file, a_changes)
