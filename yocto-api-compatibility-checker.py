@@ -17,6 +17,7 @@
 
 import argparse
 import os
+import re
 from yocto_util_core import YoctoUtil
 from GitUtil import GitUtil
 from ModifiedGitApiAnalysis import ModifiedGitChecker
@@ -29,6 +30,7 @@ if __name__=="__main__":
     parser.add_argument('-b', '--branch', action='store', default="", help='specify branch. use ... for compare')
     parser.add_argument('-r', '--reset', action='store_true', default=False, help='Remove the target_dir if specified')
     parser.add_argument('-i', '--interested', action='store', default="h|hxx|hpp|proto|capnp|dart", help='specify interested file extensions (separator:|)')
+    parser.add_argument('-p', '--greppath', action='store', default="(include|public|inc|api)", help='specify interested file path (grep expression)')
 
     args = parser.parse_args()
 
@@ -79,7 +81,7 @@ if __name__=="__main__":
             _after = a_diff[6]
             print(f"\n# {git_uri} {a_diff[1]}..{a_diff[2]}")
             changes = ModifiedGitChecker.extract_git_old_new( git_path, temp_diff_path, [_before, _after], 
-                file_extensions )
+                file_extensions, args.greppath )
             for file, a_changes in changes.items():
                 ModifiedGitChecker.check_abi_and_dump(file, a_changes, True)
 
