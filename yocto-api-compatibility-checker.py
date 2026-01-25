@@ -21,6 +21,7 @@ import re
 from yocto_util_core import YoctoUtil
 from GitUtil import GitUtil
 from ModifiedGitApiAnalysis import ModifiedGitChecker
+from ApiChecker import CAbiUtil
 
 
 if __name__=="__main__":
@@ -32,6 +33,7 @@ if __name__=="__main__":
     parser.add_argument('-i', '--interested', action='store', default="h|hxx|hpp|proto|capnp|dart", help='specify interested file extensions (separator:|)')
     parser.add_argument('-p', '--greppath', action='store', default="(include|public|inc|api)", help='specify interested file path (grep expression)')
     parser.add_argument('-e', '--excludepath', action='store', default="private", help='specify exclude file path (grep expression)')
+    parser.add_argument('-s', '--stat', action='store_true', default=False, help='Dump stat if specified')
 
     args = parser.parse_args()
 
@@ -46,6 +48,7 @@ if __name__=="__main__":
         print("You need to specify branch e.g -b kirkstone..scarthgap")
 
     is_reset = args.reset
+    is_only_stat = args.stat
     temp_path = os.path.abspath(os.path.expanduser(args.temp))
     temp_diff_path = os.path.join(temp_path, "srcs")
 
@@ -83,6 +86,31 @@ if __name__=="__main__":
             print(f"\n# {git_uri} {a_diff[1]}..{a_diff[2]}")
             changes = ModifiedGitChecker.extract_git_old_new( git_path, temp_diff_path, [_before, _after], 
                 file_extensions, args.greppath, args.excludepath )
+
+            cnt_removed = 0
+            cnt_changed = 0
+            cnt_incompatible_files = 0
+
             for file, a_changes in changes.items():
-                ModifiedGitChecker.check_abi_and_dump(file, a_changes, True)
+                removed, changed, added = ModifiedGitChecker.check_abi(file, a_changes)
+
+                cnt_removed += len(removed)
+                cnt_changed += len(changed)
+                if removed or changed:
+                    cnt_incompatible_files += 1
+
+                if not is_only_stat:
+                    old_path = a_changes[0]
+                    new_path = a_changes[1]
+
+                    if removed or changed:
+                        # incompatible case
+                        CAbiUtil.dump_results(removed, "Function removed", old_path, new_path)
+                        CAbiUtil.dump_results(changed, "Signature changed", old_path, new_path)
+                    else:
+                        # compatible case
+                        #CAbiUtil.dump_results(added, "Function added", old_path, new_path)
+                        print(f"No incompatible changes...{file}")
+
+            print(f"\nIncompatible files:{cnt_incompatible_files}, removed:{cnt_removed}, changed:{cnt_changed}")
 
