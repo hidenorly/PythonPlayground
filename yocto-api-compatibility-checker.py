@@ -83,13 +83,14 @@ if __name__=="__main__":
         if git_path:
             _before = a_diff[5]
             _after = a_diff[6]
-            print(f"\n# {git_uri} {a_diff[1]}..{a_diff[2]}")
+            is_separator_output = False
             changes = ModifiedGitChecker.extract_git_old_new( git_path, temp_diff_path, [_before, _after], 
                 file_extensions, args.greppath, args.excludepath )
 
             cnt_removed = 0
             cnt_changed = 0
             cnt_incompatible_files = 0
+            incompatible_files = []
 
             for file, a_changes in changes.items():
                 removed, changed, added = ModifiedGitChecker.check_abi(file, a_changes)
@@ -98,10 +99,15 @@ if __name__=="__main__":
                 cnt_changed += len(changed)
                 if removed or changed:
                     cnt_incompatible_files += 1
+                    incompatible_files.append(file)
 
                 if not is_only_stat:
                     old_path = a_changes[0]
                     new_path = a_changes[1]
+
+                    if not is_separator_output:
+                        is_separator_output = True
+                        print(f"\n# {git_uri} {a_diff[1]}..{a_diff[2]}\n")
 
                     if removed or changed:
                         # incompatible case
@@ -112,5 +118,13 @@ if __name__=="__main__":
                         #CAbiUtil.dump_results(added, "Function added", old_path, new_path)
                         print(f"No incompatible changes...{file}")
 
-            print(f"\nIncompatible files:{cnt_incompatible_files}, removed:{cnt_removed}, changed:{cnt_changed}")
+            if cnt_incompatible_files:
+                if not is_separator_output:
+                    is_separator_output = True
+                    print(f"\n# {git_uri} {a_diff[1]}..{a_diff[2]}")
+                print(f"\nIncompatible files:{cnt_incompatible_files}, removed:{cnt_removed}, changed:{cnt_changed}")
+                print("\n```")
+                print("\n".join(incompatible_files))
+                print("```")
+
 
