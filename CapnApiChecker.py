@@ -32,6 +32,16 @@ class EnumDef:
     values: Dict[str, EnumValue]
 
 @dataclass
+class StructField:
+    ordinal: int
+    type: str
+
+@dataclass
+class StructDef:
+    name: str
+    fields: dict[int, StructField]
+
+@dataclass
 class Field:
     type: str
 
@@ -49,11 +59,14 @@ class InterfaceDef:
 
 @dataclass
 class Schema:
-    enums: Dict[str, EnumDef] = field(default_factory=dict)
-    interfaces: Dict[str, InterfaceDef] = field(default_factory=dict)
+    enums: dict[str, EnumDef] = field(default_factory=dict)
+    interfaces: dict[str, InterfaceDef] = field(default_factory=dict)
+    structs: dict[str, StructDef] = field(default_factory=dict)
+
 
 
 class CapnApiChecker:
+    # -- extractor/parser
     IMPORT_RE = re.compile(r'import\s+"([^"]+)"\s*;')
 
     ENUM_RE = re.compile(
@@ -61,6 +74,14 @@ class CapnApiChecker:
 
     ENUM_VALUE_RE = re.compile(
         r'(\w+)\s*@\s*(\d+)\s*;')
+
+    STRUCT_RE = re.compile(
+        r'struct\s+(\w+)\s*{([^}]*)}', re.S
+    )
+
+    STRUCT_FIELD_RE = re.compile(
+        r'(\w+)\s*@\s*(\d+)\s*:\s*([\w\.]+)\s*;'
+    )
 
     INTERFACE_RE = re.compile(
         r'interface\s+(\w+)\s*(?:@\s*0x[0-9a-fA-F]+)?\s*{([^}]*)}',
@@ -92,7 +113,6 @@ class CapnApiChecker:
             fields.append(Field(type_))
         return fields
 
-
     def parse_enums(text: str, schema: Schema):
         for m in CapnApiChecker.ENUM_RE.finditer(text):
             name, body = m.groups()
@@ -101,6 +121,16 @@ class CapnApiChecker:
                 vname, ordinal = v.groups()
                 values[vname] = EnumValue(vname, int(ordinal))
             schema.enums[name] = EnumDef(name, values)
+
+    def parse_structs(text: str, schema: Schema):
+        for m in CapnApiChecker.STRUCT_RE.finditer(text):
+            name, body = m.groups()
+            fields = {}
+            for f in CapnApiChecker.STRUCT_FIELD_RE.finditer(body):
+                _, ordinal, type_ = f.groups()
+                ordinal = int(ordinal)
+                fields[ordinal] = StructField(ordinal, type_)
+            schema.structs[name] = StructDef(name, fields)
 
     def parse_interfaces(text: str, schema: Schema):
         for m in CapnApiChecker.INTERFACE_RE.finditer(text):
@@ -118,11 +148,11 @@ class CapnApiChecker:
 
             schema.interfaces[name] = InterfaceDef(name, methods)
 
-
     def parse_capnp(text: str) -> Schema:
         text = CapnApiChecker.strip_comments(text)
         schema = Schema()
         CapnApiChecker.parse_enums(text, schema)
+        CapnApiChecker.parse_structs(text, schema)
         CapnApiChecker.parse_interfaces(text, schema)
         return schema
 
@@ -158,6 +188,7 @@ class CapnApiChecker:
 
         return schema
 
+    # -- checker
     def check_enum(old: EnumDef, new: EnumDef, errors: List[str]):
         for name, oval in old.values.items():
             if name not in new.values:
@@ -170,6 +201,20 @@ class CapnApiChecker:
                     errors.append(
                         f"Enum {old.name}.{name}: ordinal changed "
                         f"{oval.ordinal} -> {nval.ordinal}"
+                    )
+
+    def check_struct(old: StructDef, new: StructDef, errors: List[str]):
+        for ord_, field in old.fields.items():
+            if ord_ not in new.fields:
+                errors.append(
+                    f"struct {old.name}: field @{ord_} removed"
+                )
+            else:
+                nf = new.fields[ord_]
+                if field.type != nf.type:
+                    errors.append(
+                        f"struct {old.name}: field @{ord_} type changed "
+                        f"{field.type} -> {nf.type}"
                     )
 
     def check_method(old: Method, new: Method, iface: str, errors: list[str]):
