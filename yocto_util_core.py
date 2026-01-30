@@ -19,7 +19,7 @@ import os
 import shutil
 import glob
 import re
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Optional, Set, Tuple
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
@@ -67,130 +67,107 @@ class YoctoUtil:
         "FILES"
     ]
 
-    def _parse_variables(content: str) -> Dict[str, str]:
-        variables = {}
-        
-        var_matches = re.findall(
-            r'(?m)^([A-Z_]+)\s*=\s*([\'"])(.*?)\2$', 
-            content, 
-            re.IGNORECASE
-        )
-        
-        for var_name, _, var_value in var_matches:
-            if var_name.upper() not in YoctoUtil.EXCLUDES_BB_VARIABLE_KEYS:
-                variables[var_name] = var_value.strip()
+    RE_VAR_DEFINITION = r'(?m)^([A-Z0-9_:]+)\s*([\.\+\?\:]?=)\s*([\'"])(.*?)\3$'
 
-        return variables
+    @staticmethod
+    def _parse_content_to_dict(content: str, data: Dict[str, Any]):
+        var_matches = re.findall(YoctoUtil.RE_VAR_DEFINITION, content, re.IGNORECASE)
+        for var_name, op, _, val in var_matches:
+            val = val.strip()
+            # SRC_URI
+            if "SRC_URI" in var_name:
+                if ":append" in var_name or "_append" in var_name or "+=" in op:
+                    data['src_uri'] += " " + val
+                elif ":prepend" in var_name or "_prepend" in var_name or "=+" in op:
+                    data['src_uri'] = val + " " + data['src_uri']
+                else:
+                    data['src_uri'] = val
+            # SRCREV
+            elif "SRCREV" in var_name:
+                name_key = var_name.replace("SRCREV", "").strip('_').strip(':').upper()
+                if not name_key or name_key == "FORCEVARIABLE": name_key = "DEFAULT"
+                data['srcrev_defs'][name_key] = val
+            # others
+            elif ":" not in var_name and var_name.upper() not in YoctoUtil.EXCLUDES_BB_VARIABLE_KEYS:
+                data['vars'][var_name] = val
 
-
-    def _parse_srcrev_defs(content: str):
-        srcrev_defs = {}
-        srcrev_matches = re.findall(
-            r'(?m)^(\s*SRCREV(?:_[A-Z0-9_-]+)?)\s*=\s*([\'"])(.*?)\2$', 
-            content, 
-            re.IGNORECASE
-        )
-        
-        for srcrev_var, _, sha_value in srcrev_matches:
-            name_key = srcrev_var.strip().upper().replace("SRCREV", "").strip('_')
-            
-            if not name_key:
-                name_key = "default"
-                
-            srcrev_defs[name_key] = sha_value.strip()
-
-        return srcrev_defs
-
+    @staticmethod
     def extract_git_src_uris(yocto_layers_path="yocto_components"):
         all_git_info: List[Dict[str, Any]] = []
         all_components = {}
 
-        for filepath in glob.glob(os.path.join(yocto_layers_path, '**', '*.bb'), recursive=True):
+        recipe_groups = {} # { bpn: { 'base': path, 'appends': [paths], 'pv': val } }
+
+        for filepath in glob.glob(os.path.join(yocto_layers_path, '**', '*.[b][b]*'), recursive=True):
             filename = os.path.basename(filepath)
-            recipe_name = os.path.basename(filepath).replace(".bb", "")
-            #print(f"...{filepath}")
-            recipe_info = {
-                "recipe_file": filepath,
-                "recipe_name": recipe_name,
-                "git_repos": []
+            if filename.endswith('.bb'):
+                match = re.match(r'(.+?)_([v|r]?\d.*)\.bb$', filename)
+                bpn = match.group(1) if match else filename.replace('.bb', '')
+                pv = match.group(2) if match else ""
+                if bpn not in recipe_groups: recipe_groups[bpn] = {'base': None, 'appends': [], 'pv': pv}
+                recipe_groups[bpn]['base'] = filepath
+            elif filename.endswith('.bbappend'):
+                bpn = filename.split('_')[0].replace('.bbappend', '')
+                if bpn not in recipe_groups: recipe_groups[bpn] = {'base': None, 'appends': [], 'pv': ""}
+                recipe_groups[bpn]['appends'].append(filepath)
+
+        for bpn, files in recipe_groups.items():
+            if not files['base']: continue # ignore if no base recipe
+
+            recipe_data = {
+                'src_uri': "",
+                'srcrev_defs': {},
+                'vars': {'BPN': bpn, 'PV': files['pv'], 'BP': bpn},
+                'recipe_file': files['base']
             }
-            _git_repos_set = set()
+
+            # parse .bb
             try:
-                with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
+                with open(files['base'], 'r', encoding='utf-8', errors='ignore') as f:
+                    YoctoUtil._parse_content_to_dict(f.read(), recipe_data)
 
-                    variables = YoctoUtil._parse_variables(content)
+                # .bbappend
+                for append_path in sorted(files['appends']):
+                    with open(append_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        YoctoUtil._parse_content_to_dict(f.read(), recipe_data)
 
-                    match = re.match(r'(.+?)_([v|r]?\d.*)\.bb$', filename)
-                    guessed_bpn = match.group(1) if match else recipe_name
-                    if guessed_bpn:
-                        variables['BPN'] = guessed_bpn
-                        variables['BP'] = guessed_bpn
-                    guessed_pv = match.group(2) if match else None
-                    if guessed_pv:
-                        variables['PV'] = guessed_pv
-                    if guessed_pv or not guessed_bpn in all_components:
-                        all_components[guessed_bpn] = guessed_pv
+                # replace variables (resolve ${VAR} in SRC_URI)
+                resolved_uri = recipe_data['src_uri']
+                for _ in range(2): # nest
+                    for v_name, v_val in recipe_data['vars'].items():
+                        resolved_uri = resolved_uri.replace(f"${{{v_name}}}", v_val).replace(f"${v_name}", v_val)
 
-                    srcrev_defs = YoctoUtil._parse_srcrev_defs(content)
+                # extract Git info.
+                git_repos = []
+                _git_repos_set = set()
+                for part in resolved_uri.split():
+                    if part.startswith(('git://', 'https://', 'http://')) and ('.git' in part or 'git.yoctoproject.org' in part):
+                        uri_parts = part.split(';')
+                        base_url = uri_parts[0]
+                        params = {p.split('=')[0]: p.split('=')[1] for p in uri_parts[1:] if '=' in p}
 
-                    srcrev_match = re.search(
-                        r'(?m)^SRCREV\s*=\s*([\'"])(.*?)\1', 
-                        content, 
-                        re.IGNORECASE
-                    )
-                    recipe_info["srcrev"] = srcrev_match.group(2).strip() if srcrev_match else None
+                        name = params.get('name')
+                        srcrev_key = name.upper() if name else "DEFAULT"
+                        srcrev = recipe_data['srcrev_defs'].get(srcrev_key) or recipe_data['srcrev_defs'].get("DEFAULT")
 
-                    src_uri_lines = re.findall(
-                        r'(?m)^SRC_URI\s*(\+\?*)*=\s*([\'"])(.*?)\2$', 
-                        content, 
-                        re.IGNORECASE | re.DOTALL
-                    )
+                        _git_repos_set.add((base_url, name, params.get('branch'), params.get('tag'), srcrev))
 
-                    for _, _, uri_string in src_uri_lines:
-                        resolved_uri_string = uri_string
-                        for var_name, var_value in variables.items():
-                            resolved_uri_string = resolved_uri_string.replace(f"${{{var_name}}}", var_value)
-                        uris = resolved_uri_string.split()
-                        
-                        for uri in uris:
-                            uri = uri.strip()
-                            if uri.startswith(('git://', 'ssh://', 'http://', 'https://')):
-                                parts = uri.split(';')
-                                base_uri = parts[0].strip()
-                                if '.git' in base_uri or 'git.yoctoproject.org' in base_uri:
-                                    branch = None
-                                    name = None
-                                    tag = None
-                                    for part in parts[1:]:
-                                        part = part.strip()
-                                        if part.lower().startswith('name='):
-                                            name = part.split('=', 1)[1].strip()
-                                        elif part.lower().startswith('branch='):
-                                            branch = part.split('=', 1)[1].strip()
-                                        elif part.lower().startswith('tag='):
-                                            tag = part.split('=', 1)[1].strip()
+                for url, name, branch, tag, srcrev in _git_repos_set:
+                    git_repos.append({
+                        "name": name, "url": url, "branch": branch, "tag": tag, "srcrev": srcrev
+                    })
 
-                                    _git_repos_set.add( (base_uri, name, branch, tag) )
+                if git_repos:
+                    all_git_info.append({
+                        "recipe_file": files['base'],
+                        "recipe_name": os.path.basename(files['base']).replace(".bb", ""),
+                        "git_repos": git_repos,
+                        "srcrev": recipe_data['srcrev_defs'].get("DEFAULT")
+                    })
+                    all_components[bpn] = files['pv']
 
-                    if _git_repos_set:
-                        _git_repos = []
-                        for base_uri, name, branch, tag in _git_repos_set:
-                            srcrev_key = name.upper() if name else "default"
-                            resolved_srcrev = srcrev_defs.get(srcrev_key)
-                            _git_repos.append({
-                                    "name": name,
-                                    "url": base_uri,
-                                    "branch": branch,
-                                    "tag": tag,
-                                    "srcrev" : resolved_srcrev
-                            })
-                        recipe_info["git_repos"] = _git_repos
-
-                        all_git_info.append(recipe_info)
-                            
             except Exception as e:
-                print(f"Error processing {filepath}: {e}")
+                print(f"Error processing {bpn}: {e}")
 
         return all_git_info, all_components
 

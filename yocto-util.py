@@ -53,7 +53,7 @@ if __name__=="__main__":
         clone_root_path = args.target
         if branch:
             clone_root_path = os.path.join(clone_root_path, branch)
-        if args.local:
+        if not args.local:
             YoctoUtil.clone_repos(yocto_repos, clone_root_path, args.reset, branch)
         all_git_info, all_components = YoctoUtil.extract_git_src_uris(clone_root_path)
         git_list, git_rev_list, artifact_list = YoctoUtil.get_git_list(all_git_info)
