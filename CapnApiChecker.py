@@ -20,6 +20,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, Set, List
 import sys
+from enum import Enum
 
 @dataclass
 class EnumValue:
@@ -66,6 +67,11 @@ class Schema:
 
 
 class CapnApiChecker:
+    # --- compatibility classification
+    COMPATIBLE = "compatible" # NO CHANGED
+    SOURCE_COMPATIBLE = "source-compatible" # argument name is changed but type is compatible
+    INCOMPATIBLE = "incompatible"
+
     # -- extractor/parser
     IMPORT_RE = re.compile(r'import\s+"([^"]+)"\s*;')
 
@@ -189,92 +195,114 @@ class CapnApiChecker:
         return schema
 
     # -- checker
-    def check_enum(old: EnumDef, new: EnumDef, errors: List[str]):
+    def check_enum(old: EnumDef, new: EnumDef, errors: List[str], removed: List[str], changed: List[str]):
+        is_compatible = True
+
         for name, oval in old.values.items():
             if name not in new.values:
-                errors.append(
-                    f"Enum {old.name}: value '{name}' removed"
-                )
+                is_compatible = False
+                _err = f"Enum {old.name}: value '{name}' removed"
+                errors.append(_err)
+                removed.append(_err)
             else:
                 nval = new.values[name]
                 if oval.ordinal != nval.ordinal:
-                    errors.append(
-                        f"Enum {old.name}.{name}: ordinal changed "
-                        f"{oval.ordinal} -> {nval.ordinal}"
-                    )
+                    is_compatible = False
+                    _err = f"Enum {old.name}.{name}: ordinal changed {oval.ordinal} -> {nval.ordinal}"
+                    errors.append(_err)
+                    changed.append(_err)
 
-    def check_struct(old: StructDef, new: StructDef, errors: List[str]):
+        return is_compatible, removed, changed
+
+    def check_struct(old: StructDef, new: StructDef, errors: List[str], removed: List[str], changed: List[str]):
+        is_compatible = True
+
         for ord_, field in old.fields.items():
             if ord_ not in new.fields:
-                errors.append(
-                    f"struct {old.name}: field @{ord_} removed"
-                )
+                is_compatible = False
+                _err = f"struct {old.name}: field @{ord_} removed"
+                errors.append(_err)
+                removed.append(_err)
             else:
                 nf = new.fields[ord_]
                 if field.type != nf.type:
-                    errors.append(
-                        f"struct {old.name}: field @{ord_} type changed "
-                        f"{field.type} -> {nf.type}"
-                    )
+                    is_compatible = False
+                    _err = f"struct {old.name}: field @{ord_} type changed {field.type} -> {nf.type}"
+                    errors.append(_err)
+                    changed.append(_err)
 
-    def check_method(old: Method, new: Method, iface: str, errors: list[str]):
+        return is_compatible, removed, changed
+
+    def check_method(old: Method, new: Method, iface: str, errors: list[str], removed: List[str], changed: List[str]):
+        is_compatible = True
+
         if old.ordinal != new.ordinal:
-            errors.append(
-                f"{iface}.{old.name}: ordinal changed "
-                f"{old.ordinal} -> {new.ordinal}"
-            )
+            is_compatible = False
+            _err = f"{iface}.{old.name}: ordinal changed {old.ordinal} -> {new.ordinal}"
+            errors.append(_err)
+            changed.append(_err)
 
         if len(old.params) > len(new.params):
-            errors.append(
-                f"{iface}.{old.name}: parameters removed"
-            )
+            is_compatible = False
+            _err = f"{iface}.{old.name}: parameters removed"
+            errors.append(_err)
+            removed.append(_err)
 
         for i, p in enumerate(old.params):
             np = new.params[i]
             if p.type != np.type:
-                errors.append(
-                    f"{iface}.{old.name}: param[{i}] type changed "
-                    f"{p.type} -> {np.type}"
-                )
+                is_compatible = False
+                _err = f"{iface}.{old.name}: param[{i}] type changed {p.type} -> {np.type}"
+                errors.append(_err)
+                changed.append(_err)
 
         if len(old.results) > len(new.results):
-            errors.append(
-                f"{iface}.{old.name}: results removed"
-            )
+            is_compatible = False
+            _err = f"{iface}.{old.name}: results removed"
+            errors.append(_err)
+            removed.append(_err)
 
         for i, r in enumerate(old.results):
             nr = new.results[i]
             if r.type != nr.type:
-                errors.append(
-                    f"{iface}.{old.name}: result[{i}] type changed "
-                    f"{r.type} -> {nr.type}"
-                )
+                is_compatible = False
+                _err = f"{iface}.{old.name}: result[{i}] type changed {r.type} -> {nr.type}"
+                errors.append(_err)
+                changed.append(_err)
 
-    def check_interface(old: InterfaceDef, new: InterfaceDef, errors: List[str]):
+        return is_compatible, removed, changed
+
+    def check_interface(old: InterfaceDef, new: InterfaceDef, errors: List[str], removed: List[str], changed: List[str]):
         for mname, m in old.methods.items():
             if mname not in new.methods:
-                errors.append(
-                    f"Interface {old.name}: method '{mname}' removed"
-                )
+                _err = f"Interface {old.name}: method '{mname}' removed"
+                errors.append(_err)
+                removed.append(_err)
             else:
-                CapnApiChecker.check_method(m, new.methods[mname], old.name, errors)
+                CapnApiChecker.check_method(m, new.methods[mname], old.name, errors, removed, changed)
 
-    def check_compat(old: Schema, new: Schema) -> List[str]:
+    def check_compat(old: Schema, new: Schema):
         errors = []
+        removed = []
+        changed = []
 
         for ename, e in old.enums.items():
             if ename not in new.enums:
-                errors.append(f"Enum '{ename}' removed")
+                _err = f"Enum '{ename}' removed"
+                removed.append(_err)
+                errors.append(_err)
             else:
-                CapnApiChecker.check_enum(e, new.enums[ename], errors)
+                CapnApiChecker.check_enum(e, new.enums[ename], errors, removed, changed)
 
         for iname, i in old.interfaces.items():
             if iname not in new.interfaces:
-                errors.append(f"Interface '{iname}' removed")
+                _err = f"Interface '{iname}' removed"
+                removed.append(_err)
+                errors.append(_err)
             else:
-                CapnApiChecker.check_interface(i, new.interfaces[iname], errors)
+                CapnApiChecker.check_interface(i, new.interfaces[iname], errors, removed, changed)
 
-        return errors
+        return errors, removed, changed
 
 
 if __name__ == "__main__":
@@ -289,7 +317,7 @@ if __name__ == "__main__":
 
     print(f"{old_path} {new_path}")
 
-    errors = CapnApiChecker.check_compat(old_schema, new_schema)
+    errors, removed, changed = CapnApiChecker.check_compat(old_schema, new_schema)
 
     if errors:
         print("Incompatible changes detected:")
