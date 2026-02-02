@@ -67,27 +67,41 @@ class YoctoUtil:
         "FILES"
     ]
 
-    RE_VAR_DEFINITION = r'(?m)^([A-Z0-9_:]+)\s*([\.\+\?\:]?=)\s*([\'"])(.*?)\3$'
+    RE_VAR_DEFINITION = r'(?m)^([A-Z0-9_:]+)\s*([\.\+\?\:]?=)\s*([\'"])(.*?)\3'
+
+    @staticmethod
+    def _preprocess_content(content: str) -> str:
+        return re.sub(r'\\\s*\n\s*', ' ', content)
 
     @staticmethod
     def _parse_content_to_dict(content: str, data: Dict[str, Any]):
-        var_matches = re.findall(YoctoUtil.RE_VAR_DEFINITION, content, re.IGNORECASE)
+        # flatten \n to " "
+        processed_content = YoctoUtil._preprocess_content(content)
+
+        var_matches = re.findall(YoctoUtil.RE_VAR_DEFINITION, processed_content, re.IGNORECASE | re.DOTALL)
+
         for var_name, op, _, val in var_matches:
             val = val.strip()
+
             # SRC_URI
             if "SRC_URI" in var_name:
-                if ":append" in var_name or "_append" in var_name or "+=" in op:
+                if ":remove" in var_name or "_remove" in var_name:
+                    for item in val.split():
+                        data['src_uri_removals'].add(item)
+                elif ":append" in var_name or "_append" in var_name or "+=" in op:
                     data['src_uri'] += " " + val
                 elif ":prepend" in var_name or "_prepend" in var_name or "=+" in op:
                     data['src_uri'] = val + " " + data['src_uri']
                 else:
                     data['src_uri'] = val
+
             # SRCREV
             elif "SRCREV" in var_name:
                 name_key = var_name.replace("SRCREV", "").strip('_').strip(':').upper()
                 if not name_key or name_key == "FORCEVARIABLE": name_key = "DEFAULT"
                 data['srcrev_defs'][name_key] = val
-            # others
+
+            # other variables
             elif ":" not in var_name and var_name.upper() not in YoctoUtil.EXCLUDES_BB_VARIABLE_KEYS:
                 data['vars'][var_name] = val
 
@@ -112,36 +126,46 @@ class YoctoUtil:
                 recipe_groups[bpn]['appends'].append(filepath)
 
         for bpn, files in recipe_groups.items():
-            if not files['base']: continue # ignore if no base recipe
+            #if not files['base']: continue # ignore if no base recipe
 
             recipe_data = {
                 'src_uri': "",
+                'src_uri_removals': set(),
                 'srcrev_defs': {},
                 'vars': {'BPN': bpn, 'PV': files['pv'], 'BP': bpn},
                 'recipe_file': files['base']
             }
 
-            # parse .bb
             try:
-                with open(files['base'], 'r', encoding='utf-8', errors='ignore') as f:
-                    YoctoUtil._parse_content_to_dict(f.read(), recipe_data)
-
-                # .bbappend
-                for append_path in sorted(files['appends']):
-                    with open(append_path, 'r', encoding='utf-8', errors='ignore') as f:
+                # parse .bb
+                if files['base']:
+                    with open(files['base'], 'r', encoding='utf-8', errors='ignore') as f:
                         YoctoUtil._parse_content_to_dict(f.read(), recipe_data)
 
-                # replace variables (resolve ${VAR} in SRC_URI)
+                # parse .bbappend
+                if files['appends']:
+                    for append_path in sorted(files['appends']):
+                        with open(append_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            YoctoUtil._parse_content_to_dict(f.read(), recipe_data)
+
+                # ensure SRC_URI
+                # --- replace variables
                 resolved_uri = recipe_data['src_uri']
                 for _ in range(2): # nest
                     for v_name, v_val in recipe_data['vars'].items():
                         resolved_uri = resolved_uri.replace(f"${{{v_name}}}", v_val).replace(f"${v_name}", v_val)
 
+                # --- apply remove
+                uri_items = resolved_uri.split()
+                removals = recipe_data['src_uri_removals']
+                filtered_items = [item for item in uri_items if item not in removals]
+                resolved_uri = " ".join(filtered_items)
+
                 # extract Git info.
                 git_repos = []
                 _git_repos_set = set()
                 for part in resolved_uri.split():
-                    if part.startswith(('git://', 'https://', 'http://')) and ('.git' in part or 'git.yoctoproject.org' in part):
+                    if part.startswith(('git://', 'https://', 'http://', 'ssh://')) and ('.git' in part or 'git.yoctoproject.org' in part or 'github' in part):
                         uri_parts = part.split(';')
                         base_url = uri_parts[0]
                         params = {p.split('=')[0]: p.split('=')[1] for p in uri_parts[1:] if '=' in p}
