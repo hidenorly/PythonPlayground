@@ -18,6 +18,7 @@
 import argparse
 import os
 from yocto_util_core import YoctoUtil
+from GitUtil import GitUtil
 
 
 if __name__=="__main__":
@@ -45,14 +46,35 @@ if __name__=="__main__":
 
     is_print = True
     branches = args.branch.split("...")
-    if len(branches)==2:
+    len_branches = len(branches)
+    target_base_dirs = args.target.split(",")
+    len_targets = len(target_base_dirs)
+    target_arguments = [
+        (target_base_dirs[0], branches[0])
+    ]
+    if len_branches==2 or len_targets==2:
         is_print = False
+        if len_branches==2 and len_targets==1:
+            target_arguments.append( (target_base_dirs[0], branches[1]) )
+        elif len_branches==1 and len_targets==2:
+            target_arguments.append( (target_base_dirs[1], branches[0]) )
+        elif len_branches==2 and len_targets==2: 
+            target_arguments.append( (target_base_dirs[1], branches[1]) )
+
     results = {}
-    for branch in branches:
-        results[branch] = {}
-        clone_root_path = args.target
-        if branch:
+    _branches = []
+    for _args in target_arguments:
+        clone_root_path = _args[0]
+        branch = _args[1]
+        if args.local:
+            if not branch:
+                branch = GitUtil.get_git_name(_args[0])
+        elif branch:
             clone_root_path = os.path.join(clone_root_path, branch)
+        _branches.append(branch)
+
+        results[branch] = {}
+
         if not args.local:
             YoctoUtil.clone_repos(yocto_repos, clone_root_path, args.reset, branch)
         all_git_info, all_components = YoctoUtil.extract_git_src_uris(clone_root_path)
@@ -71,9 +93,9 @@ if __name__=="__main__":
                 YoctoUtil.print_all_git_info(all_git_info)
 
     # before_branch...after_branch analysis
-    if len(branches)==2:
-        before = branches[0]
-        after = branches[1]
+    if len(_branches)==2:
+        before = _branches[0]
+        after = _branches[1]
         if args.componentonly:
             # component level mode (--componentonly)
             added, removed, diffed, sames =YoctoUtil. analyze(results, before, after, "components_list")
