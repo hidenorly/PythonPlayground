@@ -68,10 +68,27 @@ class YoctoUtil:
     ]
 
     RE_VAR_DEFINITION = r'(?m)^([A-Z0-9_:]+)\s*([\.\+\?\:]?=)\s*([\'"])(.*?)\3'
+    RE_SHA1 = r'[0-9a-f]{40}'
 
     @staticmethod
     def _preprocess_content(content: str) -> str:
-        return re.sub(r'\\\s*\n\s*', ' ', content)
+        content = re.sub(r'\\\s*\n\s*', ' ', content)
+        content = re.sub(r'(?m)^\s*#.*$', '', content)
+        return content
+
+    def _clean_srcrev(val: str) -> str:
+        val = val.strip()
+        # check sha1
+        if re.fullmatch(YoctoUtil.RE_SHA1, val):
+            return val
+        # check sha1 in the quote
+        sha_matches = re.findall(r'[\'"](' + YoctoUtil.RE_SHA1 + r')[\'"]', val)
+        if sha_matches:
+            return sha_matches[0]
+        # check AUTOREV
+        if "${AUTOREV}" in val or "AUTOREV" in val:
+            return "AUTOREV"
+        return val
 
     @staticmethod
     def _parse_content_to_dict(content: str, data: Dict[str, Any]):
@@ -99,7 +116,7 @@ class YoctoUtil:
             elif "SRCREV" in var_name:
                 name_key = var_name.replace("SRCREV", "").strip('_').strip(':').upper()
                 if not name_key or name_key == "FORCEVARIABLE": name_key = "DEFAULT"
-                data['srcrev_defs'][name_key] = val
+                data['srcrev_defs'][name_key] = YoctoUtil._clean_srcrev(val)
 
             # other variables
             elif ":" not in var_name and var_name.upper() not in YoctoUtil.EXCLUDES_BB_VARIABLE_KEYS:
@@ -176,9 +193,18 @@ class YoctoUtil:
 
                         _git_repos_set.add((base_url, name, params.get('branch'), params.get('tag'), srcrev))
 
+                # --- AUTOREV support
                 for url, name, branch, tag, srcrev in _git_repos_set:
+                    effective_rev = srcrev
+                    if srcrev == "AUTOREV" or not srcrev:
+                        effective_rev = branch or tag or "master"
+
                     git_repos.append({
-                        "name": name, "url": url, "branch": branch, "tag": tag, "srcrev": srcrev
+                        "name": name,
+                        "url": url,
+                        "branch": branch,
+                        "tag": tag,
+                        "srcrev": effective_rev
                     })
 
                 if git_repos:
