@@ -64,11 +64,11 @@ if __name__=="__main__":
     results = {}
     _branches = []
     for _args in target_arguments:
-        clone_root_path = _args[0]
+        clone_root_path = os.path.realpath(os.path.expanduser(_args[0]))
         branch = _args[1]
         if args.local:
             if not branch:
-                branch = GitUtil.get_git_name(_args[0])
+                branch = GitUtil.get_git_name(clone_root_path)
         elif branch:
             clone_root_path = os.path.join(clone_root_path, branch)
         _branches.append(branch)
