@@ -116,7 +116,7 @@ class YoctoUtil:
             elif "SRCREV" in var_name:
                 name_key = var_name.replace("SRCREV", "").strip('_').strip(':').upper()
                 if not name_key or name_key == "FORCEVARIABLE": name_key = "DEFAULT"
-                data['srcrev_defs'][name_key] = YoctoUtil._clean_srcrev(val)
+                data['srcrev_defs'][name_key] = val #YoctoUtil._clean_srcrev(val)
 
             # other variables
             elif ":" not in var_name and var_name.upper() not in YoctoUtil.EXCLUDES_BB_VARIABLE_KEYS:
@@ -165,12 +165,25 @@ class YoctoUtil:
                         with open(append_path, 'r', encoding='utf-8', errors='ignore') as f:
                             YoctoUtil._parse_content_to_dict(f.read(), recipe_data)
 
+                for _ in range(3):
+                    for target_key in recipe_data['vars'].keys():
+                        val = recipe_data['vars'][target_key]
+                        for v_name, v_val in recipe_data['vars'].items():
+                            if target_key == v_name: continue
+                            val = val.replace(f"${{{v_name}}}", v_val).replace(f"${v_name}", v_val)
+                        recipe_data['vars'][target_key] = val
+
+                for name_key in recipe_data['srcrev_defs'].keys():
+                    raw_val = recipe_data['srcrev_defs'][name_key]
+                    for v_name, v_val in recipe_data['vars'].items():
+                        raw_val = raw_val.replace(f"${{{v_name}}}", v_val).replace(f"${v_name}", v_val)
+                    recipe_data['srcrev_defs'][name_key] = YoctoUtil._clean_srcrev(raw_val)
+
                 # ensure SRC_URI
                 # --- replace variables
                 resolved_uri = recipe_data['src_uri']
-                for _ in range(2): # nest
-                    for v_name, v_val in recipe_data['vars'].items():
-                        resolved_uri = resolved_uri.replace(f"${{{v_name}}}", v_val).replace(f"${v_name}", v_val)
+                for v_name, v_val in recipe_data['vars'].items():
+                    resolved_uri = resolved_uri.replace(f"${{{v_name}}}", v_val).replace(f"${v_name}", v_val)
 
                 # --- apply remove
                 uri_items = resolved_uri.split()
@@ -179,26 +192,33 @@ class YoctoUtil:
                 resolved_uri = " ".join(filtered_items)
 
                 # extract Git info.
-                git_repos = []
-                _git_repos_set = set()
-                for part in resolved_uri.split():
-                    if part.startswith(('git://', 'https://', 'http://', 'ssh://')) and ('.git' in part or 'git.yoctoproject.org' in part or 'github' in part):
+                _git_repos_raw = []
+                _keys_set = set()
+
+                for part in filtered_items:
+                    if part.startswith(('git://', 'https://', 'http://', 'ssh://')) and \
+                       ('.git' in part or 'git.yoctoproject.org' in part or 'github' in part):
+
                         uri_parts = part.split(';')
                         base_url = uri_parts[0]
                         params = {p.split('=')[0]: p.split('=')[1] for p in uri_parts[1:] if '=' in p}
 
                         name = params.get('name')
                         srcrev_key = name.upper() if name else "DEFAULT"
-                        srcrev = recipe_data['srcrev_defs'].get(srcrev_key) or recipe_data['srcrev_defs'].get("DEFAULT")
+                        srcrev_val = recipe_data['srcrev_defs'].get(srcrev_key) or recipe_data['srcrev_defs'].get("DEFAULT")
 
-                        _git_repos_set.add((base_url, name, params.get('branch'), params.get('tag'), srcrev))
+                        _key = (base_url, name, params.get('branch'), params.get('tag'), srcrev_val)
+                        if _key not in _keys_set:
+                            _keys_set.add(_key)
+                            _git_repos_raw.append(_key)
 
-                # --- AUTOREV support
-                for url, name, branch, tag, srcrev in _git_repos_set:
+                _git_repos_raw.sort(key=lambda x: (x[1] or "", x[0]))
+
+                git_repos = []
+                for url, name, branch, tag, srcrev in _git_repos_raw:
                     effective_rev = srcrev
                     if srcrev == "AUTOREV" or not srcrev:
                         effective_rev = branch or tag or "master"
-
                     git_repos.append({
                         "name": name,
                         "url": url,
@@ -349,19 +369,19 @@ class YoctoUtil:
     def print_add_removed_delta(before, after, added=None, removed=None, diffed=None, sames=None):
         if added:
             print(f"Added {before}...{after}")
-            for _git in added:
+            for _git in sorted(added):
                 print(_git)
         if removed:
             print(f"\n\nRemoved {before}...{after}")
-            for _git in removed:
+            for _git in sorted(removed):
                 print(_git)
         if diffed:
             print(f"\n\nDelta {before}...{after}")
-            for _git in diffed:
+            for _git in sorted(diffed):
                 print(f"{_git[0]}: {_git[1]}...{_git[2]}")
         if sames:
             print(f"\n\nSames {before}...{after}")
-            for _git in sames:
+            for _git in sorted(sames):
                 print(f"{_git[0]}: {_git[1]}")
 
 
