@@ -77,12 +77,13 @@ if __name__=="__main__":
 
         if not args.local:
             YoctoUtil.clone_repos(yocto_repos, clone_root_path, args.reset, branch)
-        all_git_info, all_components = YoctoUtil.extract_git_src_uris(clone_root_path)
+        all_git_info, all_components, all_giturl_components = YoctoUtil.extract_git_src_uris(clone_root_path)
         git_list, git_rev_list, artifact_list = YoctoUtil.get_git_list(all_git_info)
         results[branch]["git_list"] = git_list
         results[branch]["git_rev_list"] = git_rev_list
         results[branch]["artifact_list"] = artifact_list
         results[branch]["components_list"] = all_components
+        results[branch]["all_giturl_components"] = all_giturl_components
 
         if is_print:
             if args.manifest:
@@ -98,7 +99,7 @@ if __name__=="__main__":
         after = _branches[1]
         if args.componentonly:
             # component level mode (--componentonly)
-            added, removed, diffed, sames =YoctoUtil. analyze(results, before, after, "components_list")
+            added, removed, diffed, sames = YoctoUtil.analyze_component_delta(results[before]["all_giturl_components"], results[after]["all_giturl_components"]) #YoctoUtil.analyze(results, before, after, "all_giturl_components")#components_list")
         else:
             # git level mode (--gitonly or --gitlogdelta)
             added, removed, diffed, sames = YoctoUtil.analyze(results, before, after, "git_list")

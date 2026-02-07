@@ -126,6 +126,7 @@ class YoctoUtil:
     def extract_git_src_uris(yocto_layers_path="yocto_components"):
         all_git_info: List[Dict[str, Any]] = []
         all_components = {}
+        all_giturl_components = {}
 
         recipe_groups = {} # { bpn: { 'base': path, 'appends': [paths], 'pv': val } }
 
@@ -215,6 +216,8 @@ class YoctoUtil:
                 _git_repos_raw.sort(key=lambda x: (x[1] or "", x[0]))
 
                 git_repos = []
+                last_identified = None
+                url_rev = {}
                 for url, name, branch, tag, srcrev in _git_repos_raw:
                     effective_rev = srcrev
                     if srcrev == "AUTOREV" or not srcrev:
@@ -226,20 +229,26 @@ class YoctoUtil:
                         "tag": tag,
                         "srcrev": effective_rev
                     })
+                    last_identified = url
+                    url_rev[url] = effective_rev
 
                 if git_repos:
+                    srcrev = recipe_data['srcrev_defs'].get("DEFAULT")
+                    if last_identified in url_rev:
+                        srcrev = url_rev[last_identified]
                     all_git_info.append({
                         "recipe_file": files['base'],
                         "recipe_name": os.path.basename(files['base']).replace(".bb", ""),
                         "git_repos": git_repos,
-                        "srcrev": recipe_data['srcrev_defs'].get("DEFAULT")
+                        "srcrev": srcrev
                     })
                     all_components[bpn] = files['pv']
+                    all_giturl_components[last_identified] = {'bpn': bpn, 'pv':files['pv'], "srcrev": srcrev}
 
             except Exception as e:
                 print(f"Error processing {bpn}: {e}")
 
-        return all_git_info, all_components
+        return all_git_info, all_components, all_giturl_components
 
 
     def get_git_list(all_git_info):
@@ -289,6 +298,54 @@ class YoctoUtil:
                 diffed.append( (_git, _before, _after) )
 
         return added, removed, diffed, sames
+
+    def analyze_component_delta(before, after):
+        added = []
+        removed = []
+        diffed = []
+        sames = []
+
+        before_bpn_giturls = {}
+        for git_url, info in before.items():
+            before_bpn_giturls[ info["bpn"] ] = git_url
+
+        after_bpn_giturls = {}
+        for git_url, info in after.items():
+            bpn = info["bpn"]
+            after_bpn_giturls[ info["bpn"] ] = git_url
+
+            if git_url in before or bpn in before_bpn_giturls:
+                # found -> delta
+                before_pv = None
+                if git_url in before:
+                    before_pv = before[ git_url ]["pv"]
+                    if not before_pv:
+                        before_pv = before[ git_url ]["srcrev"]
+                elif bpn in before_bpn_giturls:
+                    before_url = before_bpn_giturls[bpn]
+                    before_pv = before[ before_url ]["pv"]
+                    if not before_pv:
+                        before_pv = before[ before_url ]["srcrev"]
+
+                after_pv = info["pv"]
+                if not after_pv:
+                    after_pv = info["srcrev"]
+                if before_pv == after_pv:
+                    sames.append( (bpn, before_pv) )
+                else:
+                    diffed.append( (bpn, before_pv, after_pv) )
+            else:
+                # not found -> added
+                added.append(bpn)
+
+        for git_url, info in before.items():
+            bpn = info["bpn"]
+            if not git_url in after and not bpn in after_bpn_giturls:
+                # not found -> removed
+                removed.append(bpn)
+
+        return added, removed, diffed, sames
+
 
     def get_git_log_list(work_root, git_path, before, after, pretty="oneline", grep=None, isReset=False):
         result = ""
