@@ -229,12 +229,13 @@ class YoctoUtil:
                         "tag": tag,
                         "srcrev": effective_rev
                     })
-                    last_identified = url
-                    url_rev[url] = effective_rev
+                    if url:
+                        last_identified = url
+                        url_rev[url] = effective_rev
 
                 if git_repos:
                     srcrev = recipe_data['srcrev_defs'].get("DEFAULT")
-                    if last_identified in url_rev:
+                    if last_identified and last_identified in url_rev:
                         srcrev = url_rev[last_identified]
                     all_git_info.append({
                         "recipe_file": files['base'],
@@ -243,7 +244,8 @@ class YoctoUtil:
                         "srcrev": srcrev
                     })
                     all_components[bpn] = files['pv']
-                    all_giturl_components[last_identified] = {'bpn': bpn, 'pv':files['pv'], "srcrev": srcrev}
+                    if last_identified:
+                        all_giturl_components[last_identified] = {'bpn': bpn, 'pv':files['pv'], "srcrev": srcrev}
 
             except Exception as e:
                 print(f"Error processing {bpn}: {e}")
@@ -330,6 +332,7 @@ class YoctoUtil:
                 after_pv = info["pv"]
                 if not after_pv:
                     after_pv = info["srcrev"]
+
                 if before_pv == after_pv:
                     sames.append( (bpn, before_pv) )
                 else:

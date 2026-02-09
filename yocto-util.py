@@ -99,7 +99,7 @@ if __name__=="__main__":
         after = _branches[1]
         if args.componentonly:
             # component level mode (--componentonly)
-            added, removed, diffed, sames = YoctoUtil.analyze_component_delta(results[before]["all_giturl_components"], results[after]["all_giturl_components"]) #YoctoUtil.analyze(results, before, after, "all_giturl_components")#components_list")
+            added, removed, diffed, sames = YoctoUtil.analyze_component_delta(results[before]["all_giturl_components"], results[after]["all_giturl_components"])
         else:
             # git level mode (--gitonly or --gitlogdelta)
             added, removed, diffed, sames = YoctoUtil.analyze(results, before, after, "git_list")
