@@ -86,6 +86,42 @@ class Reporter:
 		print(print_str)
 
 
+class MarkdownReporter(Reporter):
+	def __init__(self):
+		super().__init__()
+
+	def print_section(self, section):
+		print("")
+		print(f"# {section}")
+		print("")
+
+	def print_section_keys(self, section_keys):
+		print("| " + " | ".join(section_keys) + " |")
+		print("| " + ":--- | "*len(section_keys))
+
+	def print_line_dict_data(self, line_data, print_section_keys):
+		print_str = ""
+		for key in print_section_keys:
+			if print_str:
+				print_str += " | "
+			if key in line_data:
+				print_str += line_data[key]
+			else:
+				print_str += " "
+		print(f"| {print_str} |")
+
+	def print_line_list_data(self, line_data):
+		print_str = ""
+		for col in line_data:
+			if print_str:
+				print_str += " | "
+			if col:
+				print_str += col
+			else:
+				print_str += " "
+		print(f"| {print_str} |")
+
+
 
 if __name__=="__main__":
 
@@ -100,7 +136,7 @@ if __name__=="__main__":
 		]
 	}
 
-	report = Reporter()
+	report = MarkdownReporter()
 	report.report(data)
 
 	data2 = {
