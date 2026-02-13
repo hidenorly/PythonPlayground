@@ -40,13 +40,14 @@ class Reporter:
 									section_keys_.add(key)
 									section_keys.append(key)
 						# dump cols
+						_print_section_keys = print_section_keys
 						if not print_section_keys:
-							print_section_keys = section_keys
-						self.print_section_keys(print_section_keys)
+							_print_section_keys = section_keys
+						self.print_section_keys(_print_section_keys)
 
 						# dump data
 						for line_data in section_data:
-							self.print_line_dict_data(line_data, print_section_keys)
+							self.print_line_dict_data(line_data, _print_section_keys)
 
 					# check data is array
 					elif isinstance(section_data[0], list):
@@ -162,8 +163,8 @@ if __name__=="__main__":
 			{"key1":"data1_2", "key2":"data2_2", "key4":"data3_2"}
 		],
 		"section_2":[
-			{"key1":"data1_1", "key2":"data2_1", "key3":"data3_1"},
-			{"key1":"data1_2", "key2":"data2_2", "key3":"data3_2"}
+			{"keya":"data1_1", "keyb":"data2_1", "keyc":"data3_1"},
+			{"keya":"data1_2", "keyb":"data2_2", "keyc":"data3_2"}
 		]
 	}
 
