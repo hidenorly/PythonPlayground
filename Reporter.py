@@ -63,15 +63,29 @@ class Reporter:
 	def print_section_keys(self, section_keys):
 		print(",".join(section_keys))
 
+	def convert_array_to_multilines(self, col_data):
+		result = ""
+		for data in col_data:
+			if result:
+				result += ","
+			if data:
+				result += data
+			else:
+				result += " "
+
+		return f'"{result}"'
+
 	def print_line_dict_data(self, line_data, print_section_keys):
 		print_str = ""
 		for key in print_section_keys:
 			if print_str:
 				print_str += ","
+			col = " "
 			if key in line_data:
-				print_str += line_data[key]
-			else:
-				print_str += " "
+				col = line_data[key]
+				if isinstance(col, list):
+					col = self.convert_array_to_multilines(col)
+			print_str += col
 		print(print_str)
 
 	def print_line_list_data(self, line_data):
@@ -80,6 +94,8 @@ class Reporter:
 			if print_str:
 				print_str += ","
 			if col:
+				if isinstance(col, list):
+					col = self.convert_array_to_multilines(col)
 				print_str += col
 			else:
 				print_str += " "
@@ -99,13 +115,26 @@ class MarkdownReporter(Reporter):
 		print("| " + " | ".join(section_keys) + " |")
 		print("| " + ":--- | "*len(section_keys))
 
+	def convert_array_to_multilines(self, col_data):
+		result = ""
+		for data in col_data:
+			if result:
+				result += " <br> "
+			if data:
+				result += data
+
+		return result
+
 	def print_line_dict_data(self, line_data, print_section_keys):
 		print_str = ""
 		for key in print_section_keys:
 			if print_str:
 				print_str += " | "
 			if key in line_data:
-				print_str += line_data[key]
+				col = line_data[key]
+				if isinstance(col, list):
+					col = self.convert_array_to_multilines(col)
+				print_str += col
 			else:
 				print_str += " "
 		print(f"| {print_str} |")
@@ -116,6 +145,8 @@ class MarkdownReporter(Reporter):
 			if print_str:
 				print_str += " | "
 			if col:
+				if isinstance(col, list):
+					col = self.convert_array_to_multilines(col)
 				print_str += col
 			else:
 				print_str += " "
@@ -125,9 +156,9 @@ class MarkdownReporter(Reporter):
 
 if __name__=="__main__":
 
-	data = {
+	dict_data = {
 		"section_1":[
-			{"key1":"data1_1", "key2":"data2_1", "key3":"data3_1"},
+			{"key1":"data1_1", "key2":"data2_1", "key3":["data3_1", "data3_1_2", "data3_3"]},
 			{"key1":"data1_2", "key2":"data2_2", "key4":"data3_2"}
 		],
 		"section_2":[
@@ -136,12 +167,9 @@ if __name__=="__main__":
 		]
 	}
 
-	report = MarkdownReporter()
-	report.report(data)
-
-	data2 = {
+	array_data = {
 		"section_1":[
-			["data1_1", "data2_1", "data3_1"],
+			["data1_1", "data2_1", ["data3_1", "data3_1_2", "data3_3"]],
 			["data1_2", "data2_2", "data3_2"],
 		],
 		"section_2":[
@@ -150,4 +178,11 @@ if __name__=="__main__":
 		]
 	}
 
-	report.report(data2, ["key1","key2","key3"])
+
+	report = Reporter()
+	report.report(dict_data)
+	report.report(array_data, ["key1","key2","key3"])
+
+	report2 = MarkdownReporter()
+	report2.report(dict_data)
+	report2.report(array_data, ["key1","key2","key3"])
