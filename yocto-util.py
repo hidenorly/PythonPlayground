@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 # coding: utf-8
 #   Copyright 2025, 2026 hidenorly
@@ -19,7 +20,9 @@ import argparse
 import os
 from yocto_util_core import YoctoUtil
 from GitUtil import GitUtil
+from Reporter import Reporter, MarkdownReporter
 
+result = {"Added":[], "Removed":[], "Diffed":[]}
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='Yocto util', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -100,6 +103,16 @@ if __name__=="__main__":
         if args.componentonly:
             # component level mode (--componentonly)
             added, removed, diffed, sames = YoctoUtil.analyze_component_delta(results[before]["all_giturl_components"], results[after]["all_giturl_components"])
+            for _added in added:
+                result["Added"].append({"Added":_added})
+            for _removed in removed:
+                result["Removed"].append({"Removed":_removed})
+            for _ in diffed:
+                result["Diffed"].append({"Componet":_[0], before:_[1], after:_[2]})
+            reporter = MarkdownReporter()
+            reporter.report(result)
+            exit(0)
+
         else:
             # git level mode (--gitonly or --gitlogdelta)
             added, removed, diffed, sames = YoctoUtil.analyze(results, before, after, "git_list")
