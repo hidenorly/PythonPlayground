@@ -307,7 +307,7 @@ class CapnApiChecker:
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: capnp_compat.py OLD.capnp NEW.capnp")
+        print("Usage: CapnpApiChecker.py OLD.capnp NEW.capnp")
         sys.exit(1)
 
     old_path, new_path = sys.argv[1], sys.argv[2]
