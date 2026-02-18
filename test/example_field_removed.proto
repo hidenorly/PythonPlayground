@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package com.gmail.twitte.harold;
+
+service ExampleService {
+  rpc GetValue (GetValueRequest) returns (GetValueReply);
+  rpc SetValue (SetValueRequest) returns (SetValueReply);
+
+  rpc SubscribeToChanges (stream SubscriptionRequest) returns (stream ChangeNotification) {}
+
+  rpc Shutdown (ShutdownRequest) returns (ShutdownReply);
+}
+
+message GetValueRequest {
+  string key = 1;
+}
+
+message GetValueReply {
+  string value = 1;
+}
+
+message SetValueRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message SetValueReply {
+  bool success = 1;
+}
+
+message SubscriptionRequest {}
+
+message ChangeNotification {
+  string key = 1;
+}
+
+message ShutdownRequest {
+  string reason = 1;
+}
+message ShutdownReply {
+  bool success = 1;
+}
