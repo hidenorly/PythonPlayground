@@ -70,6 +70,21 @@ python3 yocto-util.py -t ~/work/mydistro -f -c
 ```
 
 
+### delta on local
+
+```
+python3 yocto-util.py -t "./yocto_components/kirkstone,./yocto_components/scarthgap" --local -c
+```
+
+Note that you can get e.g. kirkstone, ```python3 yocto-util.py -b kirkstone``` under ```./yocto_components/kirkstone``` since the default path is ```./yocto_components/kirkstone```
+
+Then if you'd like to diff kirkstone and your kirkstone based recipe,
+
+```
+python3 yocto-util.py -t "./yocto_components/kirkstone,~/work/mydistro" --local -c
+```
+
+
 ## Trouble shoot
 
 ```.gitconfig
