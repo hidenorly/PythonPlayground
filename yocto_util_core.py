@@ -22,6 +22,8 @@ import re
 from typing import List, Dict, Any, Optional, Set, Tuple
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
+import hashlib
+from urllib.parse import urlparse, unquote
 
 from GitUtil import GitUtil
 
@@ -444,50 +446,74 @@ class YoctoUtil:
             for _git in sorted(sames):
                 print(f"{_git[0]}: {_git[1]}")
 
+    def url_to_safe_filename(url: str, max_length: int = 255) -> str:
+        url = unquote(url)
+        parsed = urlparse(url)
+        filename = parsed.netloc + parsed.path
+        if parsed.query:
+            filename += "_" + parsed.query
+        if parsed.fragment:
+            filename += "_" + parsed.fragment
+        filename = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', filename)
+        filename = re.sub(r'_+', '_', filename)
+        filename = filename.strip(" ._")
+        if not filename:
+            filename = hashlib.sha256(url.encode()).hexdigest()
+        if len(filename) > max_length:
+            hash_suffix = hashlib.sha256(url.encode()).hexdigest()[:16]
+            filename = filename[:max_length-17] + "_" + hash_suffix
+
+        return filename
 
     def generate_repo_manifest(all_git_info):
         root = ET.Element("manifest")
 
-        remote = ET.SubElement(root, "remote")
-        remote.set("name", "origin")
-        remote.set("fetch", ".")
-
+        remotes = {}
         added_projects = set()
 
         for recipe in all_git_info:
             recipe_name = recipe["recipe_name"]
-            
+
             for source in recipe["git_repos"]:
                 url = source["url"]
-                if not url.endswith(".git") and not url.startswith("git://"):
+                if not url.startswith("git://") and not url.startswith("https://"):
                     continue
+
                 srcrev = source["srcrev"]
                 branch = source["branch"]
                 tag = source["tag"]
                 source_name = source["name"]
 
-                project_name = f"{recipe_name}"
-                if source_name:
-                    project_name += f"-{source_name}"
-                
                 revision = srcrev or tag or branch or "master"
 
-                project_key = (url, revision)
+                parsed = urlparse(url)
+                base = f"{parsed.scheme}://{parsed.netloc}/"
+                repo_path = parsed.path.lstrip("/")
+
+                if base not in remotes:
+                    remote_name = f"remote{len(remotes)}"
+                    remotes[base] = remote_name
+
+                    remote = ET.SubElement(root, "remote")
+                    remote.set("name", remote_name)
+                    remote.set("fetch", base)
+
+                remote_name = remotes[base]
+
+                project_key = (repo_path, revision)
                 if project_key in added_projects:
                     continue
-                
+
                 project = ET.SubElement(root, "project")
-                project.set("name", project_name)
-                project.set("remote", "origin")
+                project.set("name", repo_path)
+                project.set("remote", remote_name)
                 project.set("revision", revision)
-                
-                project.set("name", project_name)
-                project.set("path", f"{project_name}")
-                
-                project.set("fetch", url)
+
+                path = repo_path.split("/")[-1].removesuffix(".git")
+                project.set("path", path)
 
                 added_projects.add(project_key)
 
         xml_str = ET.tostring(root, encoding='utf-8')
         pretty_xml_str = minidom.parseString(xml_str).toprettyxml(indent="  ")
-        print(str(pretty_xml_str))
+        print(pretty_xml_str)
