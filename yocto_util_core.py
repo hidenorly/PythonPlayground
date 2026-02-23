@@ -465,6 +465,17 @@ class YoctoUtil:
 
         return filename
 
+    def is_git_url(url: str) -> bool:
+        if url.endswith(".tar.gz") or url.endswith(".tgz") or url.endswith(".zip") or url.endswith(".tar.bz2") or url.endswith(".xz"):
+            return False
+
+        return (
+            url.startswith("git://") or
+            url.startswith("https://") or
+            url.startswith("ssh://") or
+            url.endswith(".git")
+        )
+
     def generate_repo_manifest(all_git_info):
         root = ET.Element("manifest")
 
@@ -476,7 +487,8 @@ class YoctoUtil:
 
             for source in recipe["git_repos"]:
                 url = source["url"]
-                if not url.startswith("git://") and not url.startswith("https://"):
+                # Skip if not git
+                if not YoctoUtil.is_git_url(url):
                     continue
 
                 srcrev = source["srcrev"]
