@@ -466,7 +466,11 @@ class YoctoUtil:
         return filename
 
     def is_git_url(url: str) -> bool:
-        if url.endswith(".tar.gz") or url.endswith(".tgz") or url.endswith(".zip") or url.endswith(".tar.bz2") or url.endswith(".xz"):
+        archive_exts = (
+            ".tar.gz", ".tgz", ".zip",
+            ".tar.bz2", ".tar.xz", ".xz"
+        )
+        if url.endswith(archive_exts):
             return False
 
         return (
