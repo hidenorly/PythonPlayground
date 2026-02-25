@@ -18,6 +18,7 @@
 import os
 from GitUtil import GitUtil
 from ApiChecker import CAbiUtil
+from CapnGrpcApiChecker import CapnGrpcApiChecker
 
 class FileUtil:
 	@staticmethod
@@ -68,8 +69,7 @@ class ModifiedGitChecker:
 
 		return git_path
 
-
-	def check_abi(target_file, target_paths):
+	def check_abi_c(target_file, target_paths):
 		api_signatures = []
 		for path in target_paths:
 			_signature = CAbiUtil.extract_c_api(path)
@@ -77,6 +77,13 @@ class ModifiedGitChecker:
 
 		return CAbiUtil.detect_breaking( api_signatures[0], api_signatures[1] )
 
+	def check_abi(target_file, target_paths):
+		if target_file.endswith((".h", ".hpp", ".hxx", ".c", ".cpp", ".cxx")):
+			return ModifiedGitChecker.check_abi_c(target_file, target_paths)
+		elif target_file.endswith((".capnp", ".capn", ".proto", ".grpc")):
+			return CapnGrpcApiChecker.detect_breaking(target_paths[0], target_paths[1])
+
+		return [], [], []
 
 	def check_abi_and_dump(target_file, target_paths, is_print_compatible=True):
 		removed, changed, added = ModifiedGitChecker.check_abi(target_file, target_paths)

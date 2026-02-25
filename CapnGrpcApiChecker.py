@@ -203,6 +203,9 @@ class ApiChecker:
     def __init__(self):
         self.incompatible: List[str] = []
         self.source_only: List[str] = []
+        self.added = []
+        self.changed = []
+        self.removed = []
 
     def check_enum(self, old: EnumDef, new: EnumDef):
         for num, oval in old.values.items():
@@ -210,6 +213,7 @@ class ApiChecker:
                 self.incompatible.append(
                     f"Enum {old.name}: value @{num} removed"
                 )
+                self.removed.append( (oval.name, old.name, "") )
                 continue
 
             nval = new.values[num]
@@ -218,6 +222,7 @@ class ApiChecker:
                     f"Enum {old.name}: value name changed @{num} "
                     f"{oval.name} -> {nval.name}"
                 )
+                #self.changed.append( (oval.name, oval.name, nval.name) )
 
     def check_message(self, old: MessageDef, new: MessageDef):
         for num, of in old.fields.items():
@@ -225,6 +230,7 @@ class ApiChecker:
                 self.incompatible.append(
                     f"Message {old.name}: field @{num} removed"
                 )
+                self.removed.append( (old.name, num, "") )
                 continue
 
             nf = new.fields[num]
@@ -234,12 +240,14 @@ class ApiChecker:
                     f"Message {old.name}: field @{num} type changed "
                     f"{of.type} -> {nf.type}"
                 )
+                self.changed.append( (old.name, of.type, nf.type) )
 
             if of.name != nf.name:
                 self.source_only.append(
                     f"Message {old.name}: field @{num} name changed "
                     f"{of.name} -> {nf.name}"
                 )
+                #self.changed.append( (old.name, of.name, nf.name) )
 
     def check_service(self, old: ServiceDef, new: ServiceDef):
         for mname, om in old.methods.items():
@@ -247,6 +255,7 @@ class ApiChecker:
                 self.incompatible.append(
                     f"Service {old.name}: method '{mname}' removed"
                 )
+                self.removed.append( (old.name, mname, "") )
                 continue
 
             nm = new.methods[mname]
@@ -257,25 +266,28 @@ class ApiChecker:
                         f"{old.name}.{mname}: ordinal changed "
                         f"{om.number} -> {nm.number}"
                     )
+                    self.changed.append( (old.name, f"{mname}:{om.number}", nm.number) )
 
             if om.input_type != nm.input_type:
                 self.incompatible.append(
                     f"{old.name}.{mname}: input type changed "
                     f"{om.input_type} -> {nm.input_type}"
                 )
+                self.changed.append( (old.name, f"{mname}:{om.input_type}", nm.input_type) )
 
             if om.output_type != nm.output_type:
                 self.incompatible.append(
                     f"{old.name}.{mname}: output type changed "
                     f"{om.output_type} -> {nm.output_type}"
                 )
+                self.changed.append( (old.name, f"{mname}:{om.output_type}", nm.output_type) )
 
     def check(self, old: Schema, new: Schema):
-
         # enums
         for name, e in old.enums.items():
             if name not in new.enums:
                 self.incompatible.append(f"Enum '{name}' removed")
+                self.removed.append( ("enum", name, "") )
             else:
                 self.check_enum(e, new.enums[name])
 
@@ -283,6 +295,7 @@ class ApiChecker:
         for name, m in old.messages.items():
             if name not in new.messages:
                 self.incompatible.append(f"Message '{name}' removed")
+                self.removed.append( ("Message", name, "") )
             else:
                 self.check_message(m, new.messages[name])
 
@@ -290,6 +303,7 @@ class ApiChecker:
         for name, s in old.services.items():
             if name not in new.services:
                 self.incompatible.append(f"Service '{name}' removed")
+                self.removed.append( ("Service", name, "") )
             else:
                 self.check_service(s, new.services[name])
 
@@ -311,6 +325,19 @@ def load_schema(path: str) -> Schema:
         return ProtoParser.parse(text)
 
     raise ValueError("Unsupported file type")
+
+
+class CapnGrpcApiChecker:
+    def detect_breaking(old, new):
+        old = load_schema(old)
+        new = load_schema(new)
+        checker = ApiChecker()
+        result = checker.check(old, new)
+
+        if checker.incompatible:
+            return checker.removed, checker.changed, checker.added
+
+        return [], [], []
 
 
 if __name__ == "__main__":
