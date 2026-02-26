@@ -93,30 +93,31 @@ if __name__=="__main__":
             incompatible_files = []
 
             for file, a_changes in changes.items():
-                removed, changed, added = ModifiedGitChecker.check_abi(file, a_changes)
+                if file:
+                    removed, changed, added = ModifiedGitChecker.check_abi(file, a_changes)
 
-                cnt_removed += len(removed)
-                cnt_changed += len(changed)
-                if removed or changed:
-                    cnt_incompatible_files += 1
-                    incompatible_files.append(file)
-
-                if not is_only_stat:
-                    old_path = a_changes[0]
-                    new_path = a_changes[1]
-
-                    if not is_separator_output:
-                        is_separator_output = True
-                        print(f"\n# {git_uri} {a_diff[1]}..{a_diff[2]}\n")
-
+                    cnt_removed += len(removed)
+                    cnt_changed += len(changed)
                     if removed or changed:
-                        # incompatible case
-                        CAbiUtil.dump_results(removed, "Function removed", old_path, new_path)
-                        CAbiUtil.dump_results(changed, "Signature changed", old_path, new_path)
-                    else:
-                        # compatible case
-                        #CAbiUtil.dump_results(added, "Function added", old_path, new_path)
-                        print(f"No incompatible changes...{file}")
+                        cnt_incompatible_files += 1
+                        incompatible_files.append(file)
+
+                    if not is_only_stat:
+                        old_path = a_changes[0]
+                        new_path = a_changes[1]
+
+                        if not is_separator_output:
+                            is_separator_output = True
+                            print(f"\n# {git_uri} {a_diff[1]}..{a_diff[2]}\n")
+
+                        if removed or changed:
+                            # incompatible case
+                            CAbiUtil.dump_results(removed, "Removed", old_path, new_path)
+                            CAbiUtil.dump_results(changed, "Changed", old_path, new_path)
+                        else:
+                            # compatible case
+                            #CAbiUtil.dump_results(added, "Function added", old_path, new_path)
+                            print(f"No incompatible changes...{file}")
 
             if cnt_incompatible_files:
                 if not is_separator_output:
