@@ -475,16 +475,31 @@ class YoctoUtil:
 
         return (
             url.startswith("git://") or
-            url.startswith("https://") or
             url.startswith("ssh://") or
             url.endswith(".git")
         )
+
+    def get_version_from_recipe_name(recipe_name):
+        pos = recipe_name.rfind("_")
+        if pos!=-1:
+            return recipe_name[pos+1:]
+        return None
+
+    def get_fallback_name(name_path_set, recipe_name, path, revision):
+        version = YoctoUtil.get_version_from_recipe_name(recipe_name)
+        if version:
+            versioned_path = f"{path}_{version}"
+            if versioned_path not in name_path_set:
+                return f"{path}_{version}"
+        return f"{path}_{revision}"
+
 
     def generate_repo_manifest(all_git_info):
         root = ET.Element("manifest")
 
         remotes = {}
         added_projects = set()
+        name_path_set = set()
 
         for recipe in all_git_info:
             recipe_name = recipe["recipe_name"]
@@ -520,12 +535,16 @@ class YoctoUtil:
                 if project_key in added_projects:
                     continue
 
+                path = repo_path.split("/")[-1].removesuffix(".git")
+                if path in name_path_set:
+                    path = YoctoUtil.get_fallback_name(name_path_set, recipe_name, path, revision)
+                name_path_set.add(path)
+
                 project = ET.SubElement(root, "project")
                 project.set("name", repo_path)
                 project.set("remote", remote_name)
                 project.set("revision", revision)
 
-                path = repo_path.split("/")[-1].removesuffix(".git")
                 project.set("path", path)
 
                 added_projects.add(project_key)
