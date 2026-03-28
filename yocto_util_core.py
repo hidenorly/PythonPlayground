@@ -454,7 +454,7 @@ class YoctoUtil:
             filename += "_" + parsed.query
         if parsed.fragment:
             filename += "_" + parsed.fragment
-        filename = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '_', filename)
+        filename = re.sub(r'[<>:"/\\|?*\x00-\x1F\.]', '_', filename)
         filename = re.sub(r'_+', '_', filename)
         filename = filename.strip(" ._")
         if not filename:
@@ -485,13 +485,13 @@ class YoctoUtil:
             return recipe_name[pos+1:]
         return None
 
-    def get_fallback_name(name_path_set, recipe_name, path, revision):
+    def get_fallback_name(name_path_set, recipe_name, path, revision, base):
         version = YoctoUtil.get_version_from_recipe_name(recipe_name)
         if version:
             versioned_path = f"{path}_{version}"
             if versioned_path not in name_path_set:
                 return f"{path}_{version}"
-        return f"{path}_{revision}"
+        return f"{base}_{path}_{revision}"
 
 
     def generate_repo_manifest(all_git_info):
@@ -537,7 +537,7 @@ class YoctoUtil:
 
                 path = repo_path.split("/")[-1].removesuffix(".git")
                 if path in name_path_set:
-                    path = YoctoUtil.get_fallback_name(name_path_set, recipe_name, path, revision)
+                    path = YoctoUtil.get_fallback_name(name_path_set, recipe_name, path, revision, YoctoUtil.url_to_safe_filename(base))
                 name_path_set.add(path)
 
                 project = ET.SubElement(root, "project")

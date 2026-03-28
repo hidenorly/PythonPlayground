@@ -28,7 +28,7 @@ class Reporter:
 				self.print_section(section)
 
 				# check data is array
-				if isinstance(section_data, list):
+				if section_data and isinstance(section_data, list):
 					# check data is dict
 					if isinstance(section_data[0], dict):
 						# extract col keys
