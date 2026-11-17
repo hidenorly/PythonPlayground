@@ -18,6 +18,7 @@
 import os
 import re
 import subprocess
+import sys
 from ExecUtil import ExecUtil
 
 class GitUtil:
@@ -91,6 +92,36 @@ class GitUtil:
 		if not os.path.exists(clone_root_path):
 			os.makedirs(clone_root_path)
 
+		cloned_path = os.path.join(clone_root_path, GitUtil.get_git_name(git_clone_uri))
+
+		if GitUtil.is_git_directory(cloned_path):
+			# Already cloned (the clone path contains the branch name, so
+			# this directory is that branch's clone): refresh it in place
+			# instead of silently reusing a stale snapshot -- discard any
+			# local changes and fast-forward to the remote branch.
+			if not branch:
+				return cloned_path
+			try:
+				current = ExecUtil.exec_cmd_with_result(
+					["git", "branch", "--show-current"], cloned_path).strip()
+				if current != branch:
+					try:
+						ExecUtil.exec_cmd_with_result(
+							["git", "checkout", branch], cloned_path)
+					except subprocess.CalledProcessError:
+						ExecUtil.exec_cmd_with_result(
+							["git", "fetch", "origin", branch], cloned_path)
+						ExecUtil.exec_cmd_with_result(
+							["git", "checkout", branch], cloned_path)
+				ExecUtil.exec_cmd_with_result(
+					["git", "reset", "--hard"], cloned_path)
+				ExecUtil.exec_cmd_with_result(
+					["git", "pull", "origin", branch], cloned_path)
+				return cloned_path
+			except subprocess.CalledProcessError as e:
+				print(f"ERROR: failed to update {cloned_path} (branch={branch}): {e.stderr.strip() if e.stderr else e}", file=sys.stderr)
+				return None
+
 		try:
 			exec_cmd = [
 				"git",
@@ -101,10 +132,13 @@ class GitUtil:
 				exec_cmd.append("-b")
 				exec_cmd.append(branch)
 			ExecUtil.exec_cmd_with_result(exec_cmd, clone_root_path)
-		except:
-			pass
+		except subprocess.CalledProcessError as e:
+			# Do NOT swallow this: a missing branch (e.g. poky has no
+			# 'wrynose' branch) must be visible to the caller, otherwise
+			# the empty result is misread as "all components removed".
+			print(f"ERROR: git clone {git_clone_uri} -b {branch} failed: {e.stderr.strip() if e.stderr else e}", file=sys.stderr)
+			return None
 
-		cloned_path = os.path.join(clone_root_path, GitUtil.get_git_name(git_clone_uri))
 		if GitUtil.is_git_directory(cloned_path):
 			return cloned_path
 

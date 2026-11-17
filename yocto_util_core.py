@@ -16,6 +16,7 @@
 
 
 import os
+import sys
 import shutil
 import glob
 import re
@@ -37,7 +38,10 @@ class YoctoUtil:
 
 
     def clone_repos(repos, target_dir="yocto_components", isReset=False, branch=None):
-        result = ""
+        # Returns a list of (url, branch) that failed to clone/checkout.
+        # Callers doing a delta must abort when this is non-empty: a
+        # partially cloned branch otherwise looks like mass removals.
+        failures = []
         if os.path.exists(target_dir) and isReset:
             try:
                 #print(f"rm -rf {target_dir}")
@@ -48,12 +52,15 @@ class YoctoUtil:
             os.makedirs(target_dir)
 
         for url in repos:
-            repo_name = url.split('/')[-1]
             cloned_path = GitUtil.clone(url, target_dir, branch)
             if not cloned_path:
-                GitUtil.pull( os.path.join(target_dir, url) )
+                # The old fallback pulled os.path.join(target_dir, url),
+                # i.e. ".../git:/git.yoctoproject.org/poky" -- a path that
+                # never exists, so the failure stayed completely silent.
+                print(f"ERROR: failed to clone {url} (branch={branch}) into {target_dir}", file=sys.stderr)
+                failures.append( (url, branch) )
 
-        return result
+        return failures
 
     EXCLUDES_BB_VARIABLE_KEYS = [
         "SUMMARY",
@@ -247,7 +254,10 @@ class YoctoUtil:
                     })
                     all_components[bpn] = files['pv']
                     if last_identified:
-                        all_giturl_components[last_identified] = {'bpn': bpn, 'pv':files['pv'], "srcrev": srcrev}
+                        _key = last_identified
+                        if _key in all_giturl_components and all_giturl_components[_key]['bpn'] != bpn:
+                            _key = f"{last_identified}#{bpn}"
+                        all_giturl_components[_key] = {'bpn': bpn, 'pv':files['pv'], "srcrev": srcrev, "git_url": last_identified}
 
             except Exception as e:
                 print(f"Error processing {bpn}: {e}")
@@ -335,10 +345,22 @@ class YoctoUtil:
                 if not after_pv:
                     after_pv = info["srcrev"]
 
-                if before_pv == after_pv:
+                # A versioned recipe whose PV is unchanged but whose
+                # SRCREV moved is still a change; comparing PV only
+                # classified it as Same and Diffed came out empty.
+                before_srcrev = None
+                after_srcrev = info["srcrev"]
+                if git_url in before:
+                    before_srcrev = before[ git_url ]["srcrev"]
+                elif bpn in before_bpn_giturls:
+                    before_srcrev = before[ before_bpn_giturls[bpn] ]["srcrev"]
+
+                if before_pv == after_pv and before_srcrev == after_srcrev:
                     sames.append( (bpn, before_pv) )
-                else:
+                elif before_pv != after_pv:
                     diffed.append( (bpn, before_pv, after_pv) )
+                else:
+                    diffed.append( (bpn, before_srcrev, after_srcrev) )
             else:
                 # not found -> added
                 added.append(bpn)

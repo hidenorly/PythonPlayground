@@ -18,6 +18,7 @@
 
 import argparse
 import os
+import sys
 from yocto_util_core import YoctoUtil
 from GitUtil import GitUtil
 from Reporter import Reporter, MarkdownReporter
@@ -78,9 +79,25 @@ if __name__=="__main__":
 
         results[branch] = {}
 
+        clone_failures = []
         if not args.local:
-            YoctoUtil.clone_repos(yocto_repos, clone_root_path, args.reset, branch)
+            clone_failures = YoctoUtil.clone_repos(yocto_repos, clone_root_path, args.reset, branch)
         all_git_info, all_components, all_giturl_components = YoctoUtil.extract_git_src_uris(clone_root_path)
+        print(f"[{branch}] {len(all_components)} components / {len(all_git_info)} git recipes under {clone_root_path}", file=sys.stderr)
+        if not is_print:
+            # Delta mode: never diff against a failed/empty side. That is
+            # exactly how a missing branch produced "Added: (none),
+            # Removed: everything, Diffed: (none)".
+            if clone_failures:
+                for _url, _branch in clone_failures:
+                    print(f"ERROR: clone failed: {_url} branch={_branch}", file=sys.stderr)
+                print(f"ERROR: aborting delta: branch '{branch}' is incomplete. "
+                      f"Check that the branch exists in every repo (e.g. poky has no 'wrynose' branch), "
+                      f"or restrict repos with -y (e.g. -y openembedded|virtualization).", file=sys.stderr)
+                sys.exit(1)
+            if not all_git_info:
+                print(f"ERROR: aborting delta: no recipes found for branch '{branch}' under {clone_root_path} (clone failed or empty).", file=sys.stderr)
+                sys.exit(1)
         git_list, git_rev_list, artifact_list = YoctoUtil.get_git_list(all_git_info)
         results[branch]["git_list"] = git_list
         results[branch]["git_rev_list"] = git_rev_list
