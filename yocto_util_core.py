@@ -373,6 +373,29 @@ class YoctoUtil:
 
         return added, removed, diffed, sames
 
+    @staticmethod
+    def export_impact_files(added, removed, diffed, out_dir):
+        # Write the component delta in the plain-text formats consumed by
+        # impact_report.py: removed.txt / added.txt hold one component
+        # (bpn) per line, diffed.txt is TSV of bpn, before value, after
+        # value (the value is PV, or SRCREV when only SRCREV changed --
+        # the same values analyze_component_delta reports).
+        # Sorted so the files are stable and diffable across runs.
+        os.makedirs(out_dir, exist_ok=True)
+        written = []
+        for filename, names in (("added.txt", added), ("removed.txt", removed)):
+            path = os.path.join(out_dir, filename)
+            with open(path, "w", encoding="utf-8") as f:
+                for name in sorted(names):
+                    f.write(f"{name}\n")
+            written.append(path)
+        path = os.path.join(out_dir, "diffed.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            for bpn, before_val, after_val in sorted(diffed):
+                f.write(f"{bpn}\t{before_val or ''}\t{after_val or ''}\n")
+        written.append(path)
+        return written
+
 
     def get_git_log_list(work_root, git_path, before, after, pretty="oneline", grep=None, isReset=False):
         result = ""

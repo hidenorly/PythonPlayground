@@ -39,6 +39,7 @@ if __name__=="__main__":
     parser.add_argument('-s', '--grep', action='store', default=None, help='Specify --grep for git log on --gitlogdelta(-l)')
     parser.add_argument('-e', '--grepextract', action='store_true', default=False, help='Specify if you output on grep result. Use with --grep')
     parser.add_argument('-m', '--manifest', action='store_true', default=False, help='Specify if you want to output manifest.xml (exclusive to the others)')
+    parser.add_argument('-i', '--impactdir', action='store', default=None, help='In component delta mode (-b before...after -c), also write added.txt / removed.txt / diffed.txt for impact_report.py into this directory')
 
     args = parser.parse_args()
 
@@ -128,6 +129,10 @@ if __name__=="__main__":
                 result["Diffed"].append({"Componet":_[0], before:_[1], after:_[2]})
             reporter = MarkdownReporter()
             reporter.report(result)
+            if args.impactdir:
+                written = YoctoUtil.export_impact_files(added, removed, diffed, os.path.expanduser(args.impactdir))
+                for _path in written:
+                    print(f"[impact] wrote {_path}", file=sys.stderr)
             exit(0)
 
         else:
@@ -141,4 +146,9 @@ if __name__=="__main__":
         else:
             # print componennt or git
             YoctoUtil.print_add_removed_delta(before, after, added, removed, diffed)
+
+    if args.impactdir:
+        # The component delta path above exits before reaching here, so
+        # arriving here means --impactdir did not apply.
+        print("WARNING: --impactdir only applies to component delta mode (-b before...after -c); no impact files were written.", file=sys.stderr)
 
